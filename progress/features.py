@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import math
+import random
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
@@ -25,7 +26,7 @@ def getPath(p, context):
 def getFileContent(fp):
     with open(fp) as f:
         content = f.readlines()
-    return content
+    return random.sample(content, int(0.0001*len(content)))
 
 def negateContext(c):
     if c == "pos":
@@ -119,6 +120,7 @@ class FeatureExtractorV1(FeatureExtractor):
     def transform(self, X):
         feature_names = self.tfidfVectorizer.get_feature_names()
         tfdif_matrix = self.tfidfVectorizer.transform(X).toarray()
+        print(feature_names)
         m,n = tfdif_matrix.shape
         l,f = len(self.categories), len(feature_names)
         matrix = dok_matrix((m,(n+(f*l))))
