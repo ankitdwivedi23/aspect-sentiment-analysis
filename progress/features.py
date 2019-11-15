@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import math
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
@@ -7,14 +8,29 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 ###########################################################
 # Helper Functions
+
+def getPath(p, context):
+    if context == "pos":
+        return getPositivePath(p)
+    else:
+        return getNegativePath(p)
+    
 def getPostivePath(p):
     return Path("./p-progress/Data/Train/Positive") / p
+
 def getNegativePath(p):
     return Path("./p-progress/Data/Train/Negative") / p
+
 def getFileContent(fp):
     with open(fp) as f:
         content = f.read()
     return content
+
+def negateContext(c):
+    if c == "pos":
+        return "neg"
+    else
+        return "pos"
 
 ############################################################
 # Abstract base class
@@ -49,24 +65,44 @@ class FeatureExtractorV1(FeatureExtractor):
         self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
         self.CountVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
         self.categories = ["Restaurants-food", "yelp-food"]
-        self.positive_files = map(getPositivePath, self.categories)
-        self.negative_files = map(getNegativePath, self.categories)
-        self.positive_frequencies = []
-        self.negative_frequencies = []
+        self.positive_frequencies = {}
+        self.negative_frequencies = {}
+        self.all_frequencies = {}
+        self.N_pos = {}
+        self.N_neg = {}
+        self.N = {}
 
     def fit(self, X):
         self.tfidfVectorizer.fit([' '.join(X)])
-        for fp in self.positive_files:
-            content = getFileContent(fp)
-            frequencies = npasarray(self.CountVectorizer.fit_transform(content)).sum(axis=0)
-            featureNames = self.CountVectorizer.get_feature_names()
-            self.positive_frequencies.append(dict(zip(featureNames, frequencies)))
-        for fp in self.negative_files:
-            content = getFileContent(fp)
-            frequencies = npasarray(self.CountVectorizer.fit_transform(content)).sum(axis=0)
-            featureNames = self.CountVectorizer.get_feature_names()
-            self.negative_frequencies.append(dict(zip(featureNames, frequencies)))
         
+        def getFrequencyDictionaryAndN(filePath):
+            content = getFileContent(filePath)
+            frequencies = npasarray(self.CountVectorizer.fit_transform(content)).sum(axis=0)
+            featureNames = self.CountVectorizer.get_feature_names()
+            return dict(zip(featureNames, frequencies)), len(self.CounVectorizer.vocabulary.keys())
+
+        for c in self.categories:
+            self.positive_frequencies[c], self.N_pos[c] = getFrequencyDictionaryAndN(getPath(c, "pos"))
+            self.negative_frequencies[c], self.N_neg[c] = getFrequencyDictionaryAndN(getPath(c, "neg"))
+            self.all_frequencies[c] = { k: x.get(k, 0) + y.get(k, 0) for k in set(self.positive.frequencies[c]) | set(self.negative.frequencies[c]) }
+            self.N = self.N_pos[c] + self.N_neg[c]
+    
+    def getFrequencyDictionaryAndN(context):
+        if context == "pos":
+            return self.positive_frequencies, self.N_pos
+        elif context == "neg":
+            return self.negative_frequencies, self.N_neg
+        return self.all_frequencies, self.N
+
+    def pmi_score(w, context):
+        pmi_score = {}
+        frequency_context, N_context = getFrequencyDictionary(w, context)
+        frequency_all, N = getFrequencyDictionary(w, "all")
+        for c in self.categories:
+            pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c]) )
+        return pmi_score
+
     def transform(self, X):
-        return self.tfidfVectorizer.transform(X)
+        tfidf = self.tfidfVectorizer.transform(X)
+
 ############################################################
