@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import math
 import random
+import nltk
+from nltk.util import ngrams
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
@@ -26,7 +28,11 @@ def getPath(p, context):
 def getFileContent(fp):
     with open(fp) as f:
         content = f.readlines()
-    return random.sample(content, int(0.0001*len(content)))
+    return random.sample(content, int(0.001*len(content)))
+
+def extract_ngrams(data, num):
+    n_grams = ngrams(data.split(), num)
+    return [ ' '.join(grams) for grams in n_grams]
 
 def negateContext(c):
     if c == "pos":
@@ -125,13 +131,17 @@ class FeatureExtractorV1(FeatureExtractor):
         l,f = len(self.categories), len(feature_names)
         matrix = dok_matrix((m,(n+(f*l))))
         for i in range(len(X)):
+            grams = extract_ngrams(X[i], 1) + extract_ngrams(X[i], 2) + extract_ngrams(X[i], 3)
             for k,v in enumerate(tfdif_matrix[i]):
                 matrix[i,k] = v
             for f_n, feature in enumerate(feature_names):
-                pmi_scores = self.get_pmi_based_score(feature)
+                pmi_scores = {}
+                if feature in grams:
+                    pmi_scores = self.get_pmi_based_score(feature)
                 for j,c in enumerate(self.categories):
-                    matrix[i, n+(l*f_n)+j] = pmi_scores[c]
-        #print(matrix)
+                    matrix[i, n+(l*f_n)+j] = 0
+                    if c in pmi_scores:
+                        matrix[i, n+(l*f_n)+j] = pmi_scores[c]
         return csc_matrix(matrix)
 
 ############################################################
