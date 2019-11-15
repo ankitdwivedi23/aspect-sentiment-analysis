@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
-
+from scipy.sparse import csc_matrix
 
 ###########################################################
 # Helper Functions
@@ -96,13 +96,27 @@ class FeatureExtractorV1(FeatureExtractor):
 
     def pmi_score(w, context):
         pmi_score = {}
-        frequency_context, N_context = getFrequencyDictionary(w, context)
-        frequency_all, N = getFrequencyDictionary(w, "all")
+        frequency_context, N_context = getFrequencyDictionaryAndN(context)
+        frequency_all, N = getFrequencyDictionaryAndN("all")
         for c in self.categories:
             pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c]) )
         return pmi_score
+    
+    def get_pmi_based_score(w):
+        pmi_score_pos = pmi_score(w, "pos")
+        pmi_score_neg = pmi_score(w, "neg")
+        return { k: x.get(k, 0) - y.get(k, 0) for k in set(pmi_score_pos) & set(pmi_score_neg) }
 
     def transform(self, X):
-        tfidf = self.tfidfVectorizer.transform(X)
+        feature_names = self.tfidfVectorizer.get_feature_names()
+        tfdif_matrix = self.tfidfVectorizer.transform(X).toarray()
+        matrix = []
+        for i in range(len(X)):
+            matrix[i] = tdif_matrix[i]
+            for f_n, feature in enumerate(feature_names):
+                pmi_scores = get_pmi_based_score(feature)
+                for c in self.categories:
+                    matrix[i].append(pmi_scores[c])
+        return csc_matrix(matrix)
 
 ############################################################
