@@ -13,22 +13,23 @@ from scipy.sparse import dok_matrix
 ###########################################################
 # Helper Functions
 
-def getPositivePath(p):
-    return Path("./../../p-progress/Data/Train/Positive") / (p)
+def getPositivePath(lexiconPath, p):
+    return Path(lexiconPath) / "Positive" / (p)
 
-def getNegativePath(p):
-        return Path("./../../p-progress/Data/Train/Negative") / (p)
+def getNegativePath(lexiconPath, p):
+        return Path(lexiconPath) / "Negative" / (p)
 
-def getPath(p, context):
+def getPath(lexiconPath, p, context):
     if context == "pos":
-        return getPositivePath(p)
+        return getPositivePath(lexiconPath, p)
     else:
-        return getNegativePath(p)
+        return getNegativePath(lexiconPath, p)
     
 def getFileContent(fp):
     with open(fp) as f:
         content = f.readlines()
-    return random.sample(content, int(0.001*len(content)))
+    #return random.sample(content, int(0.001*len(content)))
+    return content
 
 def extract_ngrams(data, num):
     n_grams = ngrams(data.split(), num)
@@ -69,10 +70,11 @@ class FeatureExtractorV0(FeatureExtractor):
 # custom implementation of PMI scores using scikit-learn's CountVectorizer
 # To evaluate the n-gram frequencies. 
 class FeatureExtractorV1(FeatureExtractor):
-    def __init__(self):
+    def __init__(self, lexiconPath):
+        self.lexiconPath = lexiconPath
         self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
         self.CountVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
-        self.categories = ["yelp_ambience", "yelp_food", "yelp_misc", "yelp_price", "yelp_service"]
+        self.categories = ["semeval_ambience", "semeval_food", "semeval_misc", "semeval_price", "semeval_service"]
         self.positive_frequencies = {}
         self.negative_frequencies = {}
         self.all_frequencies = {}
@@ -91,8 +93,8 @@ class FeatureExtractorV1(FeatureExtractor):
             return d
 
         for c in self.categories:
-            self.positive_frequencies[c], self.N_pos[c] = getFrequencyDictionaryAndN(getPath(c, "pos"))
-            self.negative_frequencies[c], self.N_neg[c] = getFrequencyDictionaryAndN(getPath(c, "neg"))
+            self.positive_frequencies[c], self.N_pos[c] = getFrequencyDictionaryAndN(getPath(self.lexiconPath, c, "pos"))
+            self.negative_frequencies[c], self.N_neg[c] = getFrequencyDictionaryAndN(getPath(self.lexiconPath, c, "neg"))
             self.all_frequencies[c] = { k: self.positive_frequencies[c].get(k, 0) + self.negative_frequencies[c].get(k, 0) \
                     for k in set(self.positive_frequencies[c]) | set(self.negative_frequencies[c]) }
             self.N[c] = self.N_pos[c] + self.N_neg[c]
@@ -126,10 +128,13 @@ class FeatureExtractorV1(FeatureExtractor):
     def transform(self, X):
         feature_names = self.tfidfVectorizer.get_feature_names()
         tfdif_matrix = self.tfidfVectorizer.transform(X).toarray()
-        print(feature_names)
+        #print(feature_names)
         m,n = tfdif_matrix.shape
+        print("(m,n) = ", (m,n))
         l,f = len(self.categories), len(feature_names)
+        print("(l,f) = ", (l,f))
         matrix = dok_matrix((m,(n+(f*l))))
+        print("dok_matrix: ", matrix.shape)
         for i in range(len(X)):
             grams = extract_ngrams(X[i], 1) + extract_ngrams(X[i], 2) + extract_ngrams(X[i], 3)
             for k,v in enumerate(tfdif_matrix[i]):

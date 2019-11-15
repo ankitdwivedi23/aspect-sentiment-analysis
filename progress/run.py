@@ -7,7 +7,20 @@ import features
 import pickle
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
+from pathlib import Path
+
+all_aspects = ['ambience','miscellaneous','food','price','service']
+all_sentiments = ['negative', 'positive', 'neutral', 'conflict', 'na']
+
 ############################################################
+
+class Options:
+    def __init__(self, task, mode, modelPath, trainFile, testFile):
+        self.task = task
+        self.mode = mode
+        self.modelPath = modelPath
+        self.trainFile = trainFile
+        self.testFile = testFile
 
 #  Class for train/test data and labels
 #
@@ -26,11 +39,12 @@ class ReviewsData:
 
 # Wrapper class to train and evaluate a model
 class Runner:    
-    def __init__(self, mode, modelPath, trainFile, testFile = None):
-        self.mode = mode
-        self.modelPath = modelPath
-        self.trainFile = trainFile
-        self.testFile = testFile
+    def __init__(self, options):
+        self.task = options.task
+        self.mode = options.mode
+        self.modelPath = options.modelPath
+        self.trainFile = options.trainFile
+        self.testFile = options.testFile
 
     def processLabels(self, Y):
         y_split = pd.Series([y.split(',') for y in Y])
@@ -73,30 +87,73 @@ class Runner:
             self.reviewsTrain = ReviewsData(X_train, y_aspects_train, y_sentiments_train)
         self.reviewsTest = ReviewsData(X_test, y_aspects_test, y_sentiments_test)
 
-    def loadModel(self):
-        print('Loading model...')
-        self.aspectDetectionModel = joblib.load(modelPath)
+    def loadAspectModel(self):
+        print('Loading aspect model...')
+        self.aspectModel = joblib.load(self.modelPath)
     
-    def saveModel(self):
-        print('Saving model...')
-        joblib.dump(self.aspectDetectionModel, self.modelPath)
+    def loadSentimentModels(self):
+        print('Loading sentiment models...')
+        sentimentModels = dict()
+        for (i,aspect) in enumerate(all_aspects):
+            sentimentModels[(i,aspect)] = joblib.load(self.modelPath + "." + aspect)
 
-    def trainModel(self):
-        print('Training model...')
-        featureExtractor = features.FeatureExtractorV0()
-        aspectDetectionModel = model.OneVsRestLinearClassifier(featureExtractor)
-        aspectDetectionModel.train(self.reviewsTrain)
-        self.aspectDetectionModel = aspectDetectionModel  
+    def saveAspectModel(self):
+        print('Saving aspect model...')
+        joblib.dump(self.aspectModel, self.modelPath)
     
-    def runModel(self):
-        print('Running model...')
-        aspectDetectionModel = self.aspectDetectionModel
+    def saveSentimentModels(self):
+        print('Saving sentiment models...')
+        for (i,aspect) in self.sentimentModels:
+            joblib.dump(self.sentimentModels[(i,aspect)], self.modelPath + "." + aspect)
+
+    def trainAspectModel(self):
+        aspectModelFeatureExtractor = features.FeatureExtractorV0()        
+        aspectModel = None        
+        if self.task == 'aspect':
+            print('Training aspect model...')
+            aspectModel = model.OneVsRestLinearClassifier(aspectModelFeatureExtractor)
+            aspectModel.train(self.reviewsTrain)
+        self.aspectModel = aspectModel
+    
+    def trainSentimentModels(self):
+        trainPath = Path(self.trainFile).parent / "Lexicons"
+        sentimentModels = dict()
+        #sentimentModelFeatureExtractor = features.FeatureExtractorV0()
+        sentimentModelFeatureExtractor = features.FeatureExtractorV1(trainPath)
+        for (i,aspect) in enumerate(all_aspects):
+            print('Training sentiment model for {0}...'.format(aspect))
+            sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect))
+            sentimentModels[(i,aspect)].train(self.reviewsTrain)
+        self.sentimentModels = sentimentModels
+
+    def runAspectModel(self):
+        print('Running aspect detection model...') 
         if self.mode == "train":
-            self.trainAspectPredictions = aspectDetectionModel.predict(self.reviewsTrain)
-        self.testAspectPredictions = aspectDetectionModel.predict(self.reviewsTest)        
+            self.trainAspectPredictions = self.aspectModel.predict(self.reviewsTrain)
+        self.testAspectPredictions = self.aspectModel.predict(self.reviewsTest)
+            
+    def runSentimentModels(self):
+        self.trainSentimentPredictions = dict()
+        self.testSentimentPredictions = dict()
+        for (i,aspect) in self.sentimentModels:
+            print('Running sentiment detection model for {0}...'.format(aspect)) 
+            if self.mode == "train":
+                self.trainSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTrain)
+                self.testSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTest)
     
-    def evalModel(self):
-        print('Evaluating model...')
+    def evalSentimentModels(self):
+        print('Evaluating sentiment models...')
+        evaluator = eval.Evaluator()
+        if self.mode == "train":
+            trainMetrics = evaluator.evalSentimentDetection(self.reviewsTrain.sentiments, self.trainSentimentPredictions)
+            print('=============Sentiment Detection Training Metrics==========')
+            self.printEvalMetrics(trainMetrics)
+        testMetrics = evaluator.evalSentimentDetection(self.reviewsTest.sentiments, self.testSentimentPredictions)
+        print('=============Sentiment Detection Test Metrics==============')
+        self.printEvalMetrics(testMetrics)
+
+    def evalAspectModel(self):
+        print('Evaluating aspect model...')
         evaluator = eval.Evaluator()
         if self.mode == "train":
             trainMetrics = evaluator.evalAspectDetection(self.reviewsTrain.aspects, self.trainAspectPredictions)
@@ -106,67 +163,79 @@ class Runner:
         print('=============Aspect Detection Test Metrics==============')
         self.printEvalMetrics(testMetrics)
     
-    def saveModelOutput(self):
-        print('Saving model output...')
-        if self.mode == "train":
-            aspectPredictions = self.trainAspectPredictions
-            outputFile = self.trainFile
-            reviews = self.reviewsTrain
-        else:
-            aspectPredictions = self.testAspectPredictions
-            outputFile = self.testFile
-            reviews = self.reviewsTest
-        
+    def writeOutput(self, predictions, outputFile, reviews):
         aspects = [",".join([str(x) for x in labels.tolist()]) for labels in reviews.aspects]
         sentiments = [",".join([str(x) for x in labels.tolist()]) for labels in reviews.sentiments]        
         data = pd.concat([reviews.reviews, pd.Series(aspects), pd.Series(sentiments)], axis=1, ignore_index=True, sort =False)
+        predictions = pd.DataFrame(predictions)
 
-        aspectPredictions = pd.DataFrame(aspectPredictions)
-        
-        labelCount = aspectPredictions.shape[1]
-        aspectPredictions[labelCount] = aspectPredictions[0].map(str)
+        labelCount = predictions.shape[1]
+        predictions[labelCount] = predictions[0].map(str)
+            
         for i in range(1,labelCount):
-            aspectPredictions[labelCount] = aspectPredictions[labelCount] + "," + aspectPredictions[i].map(str)
-        modelOutput = pd.concat([data, aspectPredictions[labelCount]], axis=1, ignore_index=True, sort =False)
-        modelOutput.to_csv(outputFile + ".output", sep="\t", header=False, index=False)        
+            predictions[labelCount] = predictions[labelCount] + "," + predictions[i].map(str)
+            
+        modelOutput = pd.concat([data, predictions[labelCount]], axis=1, ignore_index=True, sort =False)
+        modelOutput.to_csv(outputFile, sep="\t", header=False, index=False)
+
+    def writeAspectModelOutput(self):
+        print('Writing aspect model output...')        
+        if self.mode == "train":
+            self.writeOutput(self.trainAspectPredictions, self.trainFile + ".output", self.reviewsTrain)        
+        self.writeOutput(self.testAspectPredictions, self.trainFile + ".test.output" if self.testFile is None else self.testFile + ".output", self.reviewsTest)
+
+    def writeSentimentModelOutput(self):
+        for (i,aspect) in self.sentimentModels:
+            if self.mode == "train":
+                self.writeOutput(self.trainSentimentPredictions[(i,aspect)], self.trainFile + "." + aspect + ".output", self.reviewsTrain)        
+            self.writeOutput(self.testSentimentPredictions[(i,aspect)], self.trainFile + "." + aspect + ".test.output" if self.testFile is None else self.testFile + ".output", self.reviewsTest)    
     
     def printEvalMetrics(self, metrics):
         for m in metrics:
-            print("{0} = {1}".format(m, metrics[m]))
+            print("{0} = {1}".format(m, metrics[m]))    
 
     def run(self):
         self.readData()
-        if self.mode == "train":
-            self.trainModel()
-            self.saveModel()
-        elif mode == "test":
-            self.loadModel()
-        else:
-            print("Unknown mode")
-            return
-        self.runModel()
-        self.evalModel()
-        self.saveModelOutput()
+        if self.task == "aspect":
+            if self.mode == "train":
+                self.trainAspectModel()
+                self.saveAspectModel()
+            elif mode == "test":
+                self.loadAspectModel()
+            else:
+                print("Unknown mode")
+                return
+            self.runAspectModel()               
+            self.evalAspectModel()
+            self.writeAspectModelOutput()            
+        elif self.task == "sentiment":
+            if self.mode == "train":
+                self.trainSentimentModels()
+                self.saveSentimentModels()
+            elif mode == "test":
+                self.loadSentimentModels()
+            else:
+                print("Unknown mode")
+                return
+            self.runSentimentModels()               
+            self.evalSentimentModels()
+            self.writeSentimentModelOutput() 
     
 ############################################################
 
-def main(mode, modelPath, trainFile, testFile):
-    runner = Runner(mode, modelPath, trainFile, testFile)
+def main(options):
+    runner = Runner(options)
     runner.run()
 
 if __name__ == '__main__':
-    mode = sys.argv[1]
-    modelPath = sys.argv[2]
-    trainFile = None
+    task = sys.argv[1]
+    mode = sys.argv[2]
+    modelPath = sys.argv[3]
+    trainFile = sys.argv[4]
     testFile = None
-
-    if mode == "train":
-        trainFile = sys.argv[3]
-        if len(sys.argv) > 4:
-            testFile = sys.argv[4]
-    elif mode == "test":
-        testFile = sys.argv[3]
-    
-    main(mode, modelPath, trainFile, testFile)
+    if len(sys.argv) > 5:
+        testFile = sys.argv[5]    
+    options = Options(task, mode, modelPath, trainFile, testFile)
+    main(options)
 
     

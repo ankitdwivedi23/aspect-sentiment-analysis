@@ -1,4 +1,5 @@
 import nltk
+import pandas as pd
 from nltk.stem import WordNetLemmatizer
 import re
 
@@ -18,5 +19,8 @@ def preprocessText(text):
     text = re.sub(r'\s+', ' ', text)
     text = lemmatize(text)
     return text
+
+def preprocessInput(X):
+        return pd.Series([preprocessText(x) for x in X])
 
     
