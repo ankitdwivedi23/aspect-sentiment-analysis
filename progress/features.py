@@ -29,7 +29,7 @@ def getFileContent(fp):
 def negateContext(c):
     if c == "pos":
         return "neg"
-    else
+    else:
         return "pos"
 
 ############################################################
@@ -77,7 +77,7 @@ class FeatureExtractorV1(FeatureExtractor):
         
         def getFrequencyDictionaryAndN(filePath):
             content = getFileContent(filePath)
-            frequencies = npasarray(self.CountVectorizer.fit_transform(content)).sum(axis=0)
+            frequencies = self.CountVectorizer.fit_transform(content).sum(axis=0)
             featureNames = self.CountVectorizer.get_feature_names()
             return dict(zip(featureNames, frequencies)), len(self.CounVectorizer.vocabulary.keys())
 
@@ -99,7 +99,7 @@ class FeatureExtractorV1(FeatureExtractor):
         frequency_context, N_context = getFrequencyDictionaryAndN(context)
         frequency_all, N = getFrequencyDictionaryAndN("all")
         for c in self.categories:
-            pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c]) )
+            pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c][w]) )
         return pmi_score
     
     def get_pmi_based_score(w):
