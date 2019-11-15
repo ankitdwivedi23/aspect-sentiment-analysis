@@ -12,11 +12,11 @@ neutral_file = data_folder / 'yelp_neutral_reviews'
 business_data = []
 review_data = []
 
-with open(business_file) as f:
+with open(business_file, encoding="utf-8") as f:
     for line in f:
         business_data.append(json.loads(line))
 
-with open(review_file) as f:
+with open(review_file, encoding="utf-8") as f:
     for line in f:
         review_data.append(json.loads(line))
 
@@ -35,7 +35,8 @@ neutral_reviews = []
 
 for review in review_data:
     b_id = review["business_id"]
-    if b_id not in is_restaurant:
+    review["text"] = review["text"].replace("\n", " ")
+    if b_id in is_restaurant:
         if review["stars"] > 3:
             positive_reviews.append(review["text"])
         elif review["stars"] < 3:
@@ -44,9 +45,9 @@ for review in review_data:
             neutral_reviews.append(review["text"])
 
 def writeToFile(fp, text_list): 
-    with open(fp, 'w+') as f:
+    with open(fp, 'w+', encoding="utf-8") as f:
         for text in text_list:
-            f.write(text)
+            f.write(text + "\n")
 
 writeToFile(positive_file, positive_reviews)
 writeToFile(negative_file, negative_reviews)
