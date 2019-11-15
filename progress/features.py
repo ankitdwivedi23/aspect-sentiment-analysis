@@ -9,18 +9,18 @@ from scipy.sparse import csc_matrix
 ###########################################################
 # Helper Functions
 
+def getPositivePath(p):
+    return Path("./../../p-progress/Data/Train/Positive") / (p+'.txt')
+
+def getNegativePath(p):
+        return Path("./../../p-progress/Data/Train/Negative") / (p+'.txt')
+
 def getPath(p, context):
     if context == "pos":
         return getPositivePath(p)
     else:
         return getNegativePath(p)
     
-def getPostivePath(p):
-    return Path("./p-progress/Data/Train/Positive") / p
-
-def getNegativePath(p):
-    return Path("./p-progress/Data/Train/Negative") / p
-
 def getFileContent(fp):
     with open(fp) as f:
         content = f.read()
