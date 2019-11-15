@@ -5,6 +5,7 @@ from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.sparse import csc_matrix
+from scipy.sparse import dok_matrix
 
 ###########################################################
 # Helper Functions
@@ -23,7 +24,7 @@ def getPath(p, context):
     
 def getFileContent(fp):
     with open(fp) as f:
-        content = f.read()
+        content = f.readlines()
     return content
 
 def negateContext(c):
@@ -77,46 +78,58 @@ class FeatureExtractorV1(FeatureExtractor):
         
         def getFrequencyDictionaryAndN(filePath):
             content = getFileContent(filePath)
-            frequencies = self.CountVectorizer.fit_transform(content).sum(axis=0)
+            frequencies = self.CountVectorizer.fit_transform(content).sum(axis=0).tolist()[0]
             featureNames = self.CountVectorizer.get_feature_names()
-            return dict(zip(featureNames, frequencies)), len(self.CounVectorizer.vocabulary.keys())
+            d = dict(zip(featureNames, frequencies)), len(featureNames)
+            return d
 
         for c in self.categories:
             self.positive_frequencies[c], self.N_pos[c] = getFrequencyDictionaryAndN(getPath(c, "pos"))
             self.negative_frequencies[c], self.N_neg[c] = getFrequencyDictionaryAndN(getPath(c, "neg"))
-            self.all_frequencies[c] = { k: x.get(k, 0) + y.get(k, 0) for k in set(self.positive.frequencies[c]) | set(self.negative.frequencies[c]) }
-            self.N = self.N_pos[c] + self.N_neg[c]
-    
-    def getFrequencyDictionaryAndN(context):
+            self.all_frequencies[c] = { k: self.positive_frequencies[c].get(k, 0) + self.negative_frequencies[c].get(k, 0) \
+                    for k in set(self.positive_frequencies[c]) | set(self.negative_frequencies[c]) }
+            self.N[c] = self.N_pos[c] + self.N_neg[c]
+        
+    def getFrequencyDictionaryAndN(self, context):
         if context == "pos":
             return self.positive_frequencies, self.N_pos
         elif context == "neg":
             return self.negative_frequencies, self.N_neg
         return self.all_frequencies, self.N
 
-    def pmi_score(w, context):
+    def pmi_score(self, w, context):
         pmi_score = {}
-        frequency_context, N_context = getFrequencyDictionaryAndN(context)
-        frequency_all, N = getFrequencyDictionaryAndN("all")
+        frequency_context, N_context = self.getFrequencyDictionaryAndN(context)
+        frequency_all, N = self.getFrequencyDictionaryAndN("all")
         for c in self.categories:
-            pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c][w]) )
+            if w in frequency_context[c] and w in frequency_all[c]:
+                pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c][w]) )
         return pmi_score
     
-    def get_pmi_based_score(w):
-        pmi_score_pos = pmi_score(w, "pos")
-        pmi_score_neg = pmi_score(w, "neg")
-        return { k: x.get(k, 0) - y.get(k, 0) for k in set(pmi_score_pos) & set(pmi_score_neg) }
+    def get_pmi_based_score(self, w):
+        pmi_score_pos = self.pmi_score(w, "pos")
+        pmi_score_neg = self.pmi_score(w, "neg")
+        score = {}
+        for c in self.categories:
+            score[c] = 0.0
+            if c in pmi_score_pos and c in pmi_score_neg:
+                score[c] = (pmi_score_pos[c] - pmi_score_neg[c])
+        return score
 
     def transform(self, X):
         feature_names = self.tfidfVectorizer.get_feature_names()
         tfdif_matrix = self.tfidfVectorizer.transform(X).toarray()
-        matrix = []
+        m,n = tfdif_matrix.shape
+        l,f = len(self.categories), len(feature_names)
+        matrix = dok_matrix((m,(n+(f*l))))
         for i in range(len(X)):
-            matrix[i] = tdif_matrix[i]
+            for k,v in enumerate(tfdif_matrix[i]):
+                matrix[i,k] = v
             for f_n, feature in enumerate(feature_names):
-                pmi_scores = get_pmi_based_score(feature)
-                for c in self.categories:
-                    matrix[i].append(pmi_scores[c])
+                pmi_scores = self.get_pmi_based_score(feature)
+                for j,c in enumerate(self.categories):
+                    matrix[i, n+(l*f_n)+j] = pmi_scores[c]
+        #print(matrix)
         return csc_matrix(matrix)
 
 ############################################################
