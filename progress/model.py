@@ -21,24 +21,42 @@ class Model:
 class OneVsRestLinearClassifier(Model):
     def __init__(self, featureExtractor):
         self.model = OneVsRestClassifier(SGDClassifier())
-        self.featureExtractor = featureExtractor 
-    
-    def preprocessInput(self, X):
-        return pd.Series([util.preprocessText(review) for review in X])
+        self.featureExtractor = featureExtractor
 
     def train(self, reviewsData):
         X_train = reviewsData.reviews
-        X_train = self.preprocessInput(X_train)
+        X_train = util.preprocessInput(X_train)
         y_train = reviewsData.aspects
         self.featureExtractor.fit(X_train)
         featureVector= self.featureExtractor.transform(X_train)
-        #print(featureVector.shape)
-        #print(y_train.shape)
         self.model.fit(featureVector, y_train)
     
     def predict(self, reviewsData):
         X = reviewsData.reviews
-        X = self.preprocessInput(X)
+        X = util.preprocessInput(X)
         featureVector = self.featureExtractor.transform(X)
         return self.model.predict(featureVector)
 ###############################################################
+
+class LinearClassifier(Model):
+    def __init__(self, featureExtractor, aspect):
+        self.model = SGDClassifier()
+        self.featureExtractor = featureExtractor
+        self.aspect = aspect
+
+    def train(self, reviewsData):
+        X_train = reviewsData.reviews
+        X_train = util.preprocessInput(X_train)
+        y_train = reviewsData.sentiments
+        y_train = y_train[:,self.aspect[0]]
+        self.featureExtractor.fit(X_train)
+        print('Generating feature vector...')
+        featureVector= self.featureExtractor.transform(X_train)
+        print('Fitting model on training data...')
+        self.model.fit(featureVector, y_train)
+    
+    def predict(self, reviewsData):
+        X = reviewsData.reviews
+        X = util.preprocessInput(X)
+        featureVector = self.featureExtractor.transform(X)
+        return self.model.predict(featureVector)
