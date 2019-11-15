@@ -11,10 +11,10 @@ from scipy.sparse import dok_matrix
 # Helper Functions
 
 def getPositivePath(p):
-    return Path("./../../p-progress/Data/Train/Positive") / (p+'.txt')
+    return Path("./../../p-progress/Data/Train/Positive") / (p)
 
 def getNegativePath(p):
-        return Path("./../../p-progress/Data/Train/Negative") / (p+'.txt')
+        return Path("./../../p-progress/Data/Train/Negative") / (p)
 
 def getPath(p, context):
     if context == "pos":
@@ -65,7 +65,7 @@ class FeatureExtractorV1(FeatureExtractor):
     def __init__(self):
         self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
         self.CountVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
-        self.categories = ["Restaurants-food", "yelp-food"]
+        self.categories = ["yelp_ambience", "yelp_food", "yelp_misc", "yelp_price", "yelp_service"]
         self.positive_frequencies = {}
         self.negative_frequencies = {}
         self.all_frequencies = {}
