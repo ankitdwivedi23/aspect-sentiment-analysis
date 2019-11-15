@@ -47,7 +47,7 @@ for review in review_data:
 def writeToFile(fp, text_list): 
     with open(fp, 'w+', encoding="utf-8") as f:
         for text in text_list:
-            f.write(text)
+            f.write(text + "\n")
 
 writeToFile(positive_file, positive_reviews)
 writeToFile(negative_file, negative_reviews)
