@@ -43,6 +43,7 @@ class LinearClassifier(Model):
         self.model = SGDClassifier()
         self.featureExtractor = featureExtractor
         self.aspect = aspect
+        self.featureVectorCache = dict()
 
     def train(self, reviewsData):
         X_train = reviewsData.reviews
@@ -51,12 +52,18 @@ class LinearClassifier(Model):
         y_train = y_train[:,self.aspect[0]]
         self.featureExtractor.fit(X_train)
         print('Generating feature vector...')
-        featureVector= self.featureExtractor.transform(X_train)
+        cacheKey = self.aspect[1] + "_train"
+        if cacheKey not in self.featureVectorCache:
+            self.featureVectorCache[cacheKey] = self.featureExtractor.transform(X_train)
+        featureVector= self.featureVectorCache[cacheKey]
         print('Fitting model on training data...')
         self.model.fit(featureVector, y_train)
     
-    def predict(self, reviewsData):
+    def predict(self, reviewsData, mode):
         X = reviewsData.reviews
         X = util.preprocessInput(X)
-        featureVector = self.featureExtractor.transform(X)
+        cacheKey = self.aspect[1] + "_" + mode
+        if cacheKey not in self.featureVectorCache:
+            self.featureVectorCache[cacheKey] = self.featureExtractor.transform(X)        
+        featureVector = self.featureVectorCache[cacheKey]
         return self.model.predict(featureVector)

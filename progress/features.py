@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.sparse import csc_matrix
 from scipy.sparse import dok_matrix
+from scipy.sparse import hstack
 
 ###########################################################
 # Helper Functions
@@ -26,7 +27,7 @@ def getPath(lexiconPath, p, context):
         return getNegativePath(lexiconPath, p)
     
 def getFileContent(fp):
-    with open(fp) as f:
+    with open(fp, encoding='utf-8') as f:
         content = f.readlines()
     #return random.sample(content, int(0.001*len(content)))
     return content
@@ -70,11 +71,11 @@ class FeatureExtractorV0(FeatureExtractor):
 # custom implementation of PMI scores using scikit-learn's CountVectorizer
 # To evaluate the n-gram frequencies. 
 class FeatureExtractorV1(FeatureExtractor):
-    def __init__(self, lexiconPath):
+    def __init__(self, lexiconPath, aspect):
         self.lexiconPath = lexiconPath
-        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
-        self.CountVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
-        self.categories = ["semeval_ambience", "semeval_food", "semeval_misc", "semeval_price", "semeval_service"]
+        #self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+        self.countVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
+        self.categories = [aspect]
         self.positive_frequencies = {}
         self.negative_frequencies = {}
         self.all_frequencies = {}
@@ -83,12 +84,12 @@ class FeatureExtractorV1(FeatureExtractor):
         self.N = {}
 
     def fit(self, X):
-        self.tfidfVectorizer.fit([' '.join(X)])
+        #self.tfidfVectorizer.fit([' '.join(X)])
         
         def getFrequencyDictionaryAndN(filePath):
             content = getFileContent(filePath)
-            frequencies = self.CountVectorizer.fit_transform(content).sum(axis=0).tolist()[0]
-            featureNames = self.CountVectorizer.get_feature_names()
+            frequencies = self.countVectorizer.fit_transform(content).sum(axis=0).tolist()[0]
+            featureNames = self.countVectorizer.get_feature_names()
             d = dict(zip(featureNames, frequencies)), len(featureNames)
             return d
 
@@ -125,28 +126,32 @@ class FeatureExtractorV1(FeatureExtractor):
                 score[c] = (pmi_score_pos[c] - pmi_score_neg[c])
         return score
 
-    def transform(self, X):
-        feature_names = self.tfidfVectorizer.get_feature_names()
-        tfdif_matrix = self.tfidfVectorizer.transform(X).toarray()
+    def transform(self, X):        
+        feature_names = self.countVectorizer.get_feature_names()
+        #feature_names = self.tfidfVectorizer.get_feature_names()
+        #tfidf = self.tfidfVectorizer.transform(X)
         #print(feature_names)
-        m,n = tfdif_matrix.shape
-        print("(m,n) = ", (m,n))
+        #m,n = tfidf.toarray().shape
+        m = len(X)
+        feature_num_names = {k:v for v,k in enumerate(feature_names)}
+        #print("(m,n) = ", (m,n))
         l,f = len(self.categories), len(feature_names)
         print("(l,f) = ", (l,f))
-        matrix = dok_matrix((m,(n+(f*l))))
+        matrix = dok_matrix((m,f*l))
         print("dok_matrix: ", matrix.shape)
-        for i in range(len(X)):
+        for i in range(m):
+            #print(X[i])
             grams = extract_ngrams(X[i], 1) + extract_ngrams(X[i], 2) + extract_ngrams(X[i], 3)
-            for k,v in enumerate(tfdif_matrix[i]):
-                matrix[i,k] = v
-            for f_n, feature in enumerate(feature_names):
-                pmi_scores = {}
-                if feature in grams:
-                    pmi_scores = self.get_pmi_based_score(feature)
+            for feature in grams:
+                if feature not in feature_names:
+                    continue
+                f_n = feature_num_names[feature]
+                pmi_scores = self.get_pmi_based_score(feature)
                 for j,c in enumerate(self.categories):
-                    matrix[i, n+(l*f_n)+j] = 0
+                    matrix[i, (l*f_n)+j] = 0
                     if c in pmi_scores:
-                        matrix[i, n+(l*f_n)+j] = pmi_scores[c]
+                        matrix[i, (l*f_n)+j] = pmi_scores[c]
         return csc_matrix(matrix)
+        #return csc_matrix(hstack((matrix, tfidf)))
 
 ############################################################

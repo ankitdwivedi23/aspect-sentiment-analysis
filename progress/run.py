@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
 from pathlib import Path
 
-all_aspects = ['ambience','miscellaneous','food','price','service']
+all_aspects = ['ambience','misc','food','price','service']
 all_sentiments = ['negative', 'positive', 'neutral', 'conflict', 'na']
 
 ############################################################
@@ -119,9 +119,9 @@ class Runner:
         trainPath = Path(self.trainFile).parent / "Lexicons"
         sentimentModels = dict()
         #sentimentModelFeatureExtractor = features.FeatureExtractorV0()
-        sentimentModelFeatureExtractor = features.FeatureExtractorV1(trainPath)
         for (i,aspect) in enumerate(all_aspects):
             print('Training sentiment model for {0}...'.format(aspect))
+            sentimentModelFeatureExtractor = features.FeatureExtractorV1(trainPath, aspect)
             sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect))
             sentimentModels[(i,aspect)].train(self.reviewsTrain)
         self.sentimentModels = sentimentModels
@@ -138,8 +138,8 @@ class Runner:
         for (i,aspect) in self.sentimentModels:
             print('Running sentiment detection model for {0}...'.format(aspect)) 
             if self.mode == "train":
-                self.trainSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTrain)
-                self.testSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTest)
+                self.trainSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTrain, "train")
+                self.testSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTest, "test")
     
     def evalSentimentModels(self):
         print('Evaluating sentiment models...')
