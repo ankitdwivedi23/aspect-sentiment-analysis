@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import math
@@ -8,6 +9,7 @@ from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
 from scipy.sparse import dok_matrix
 from scipy.sparse import hstack
 
@@ -62,8 +64,6 @@ class FeatureExtractorV0(FeatureExtractor):
     
     def transform(self, X):
         return self.tfidfVectorizer.transform(X)
-############################################################
-
 ############################################################
 
 # Version-1 Feature extractor that uses scikit-learn's TfidfVectorizer
@@ -153,5 +153,48 @@ class FeatureExtractorV1(FeatureExtractor):
                         matrix[i, (l*f_n)+j] = pmi_scores[c]
         return csc_matrix(matrix)
         #return csc_matrix(hstack((matrix, tfidf)))
+
+############################################################
+
+# Version-2 Feature extractor that uses GloVe word embedding vectors along with tf-idf
+# glovePath: path to pre-trained GloVe weights - https://nlp.stanford.edu/projects/glove/
+class FeatureExtractorV2(FeatureExtractor):
+    def __init__(self, glovePath):
+        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+        self.embeddings = dict()
+        with open(glovePath, encoding='utf-8') as f:
+            for line in f:
+                values = line.split()
+                word = values[0]
+                coefs = np.asarray(values[1:], dtype='float32')
+                self.embeddings[word] = coefs
+    
+    def fit(self, X):
+        self.tfidfVectorizer.fit([' '.join(X)])
+        pass
+    
+    def transform(self, X):
+        tfidf = self.tfidfVectorizer.transform(X)
+        featureVector = []
+        
+        for x in X:
+            avgEmbeddingVector = np.zeros((100))
+            count = 0
+            for word in x.split():
+                if word in self.embeddings:
+                    count += 1
+                    avgEmbeddingVector = avgEmbeddingVector + self.embeddings[word]
+            if count == 0:
+                print(x)
+            if count > 0:
+                avgEmbeddingVector/=count
+            featureVector.append(avgEmbeddingVector)
+        
+        featureVector = np.asarray(featureVector)
+        embeddingMatrix = csr_matrix(featureVector)
+        print(embeddingMatrix.shape)
+        print(tfidf.shape)
+        featureMatrix = hstack([embeddingMatrix, tfidf])
+        return featureMatrix
 
 ############################################################

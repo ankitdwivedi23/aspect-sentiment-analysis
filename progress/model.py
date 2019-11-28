@@ -39,16 +39,22 @@ class OneVsRestLinearClassifier(Model):
 ###############################################################
 
 class LinearClassifier(Model):
-    def __init__(self, featureExtractor, aspect):
+    def __init__(self, featureExtractor, aspect, task):
         self.model = SGDClassifier()
         self.featureExtractor = featureExtractor
         self.aspect = aspect
+        self.task = task
         self.featureVectorCache = dict()
 
     def train(self, reviewsData):
         X_train = reviewsData.reviews
         X_train = util.preprocessInput(X_train)
-        y_train = reviewsData.sentiments
+        
+        if self.task == "aspect":
+            y_train = reviewsData.aspects
+        elif self.task == "sentiment":
+            y_train = reviewsData.sentiments
+
         y_train = y_train[:,self.aspect[0]]
         self.featureExtractor.fit(X_train)
         print('Generating feature vector...')

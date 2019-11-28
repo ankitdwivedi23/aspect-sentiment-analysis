@@ -17,6 +17,7 @@ def preprocessText(text):
     text = re.sub(r'\W', ' ', text)    
     # replace multiple spaces with single space
     text = re.sub(r'\s+', ' ', text)
+    text = text.lower()
     text = lemmatize(text)
     return text
 
