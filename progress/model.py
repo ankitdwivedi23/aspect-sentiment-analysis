@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.linear_model import SGDClassifier
+from sklearn.naive_bayes import MultinomialNB
 import util
 import features
 
@@ -52,10 +53,15 @@ class LinearClassifier(Model):
         
         if self.task == "aspect":
             y_train = reviewsData.aspects
+            y_train = y_train[:,self.aspect[0]]
         elif self.task == "sentiment":
             y_train = reviewsData.sentiments
-
-        y_train = y_train[:,self.aspect[0]]
+            y_train = pd.Series(y_train[:,self.aspect[0]])
+            all_data = pd.concat([X_train,y_train], axis=1)
+            all_data.columns = ["ReviewText", "Sentiment"]
+            all_data = all_data[all_data["Sentiment"] != 3].reset_index(drop=True)
+            X_train = all_data["ReviewText"]
+            y_train = all_data["Sentiment"]
         self.featureExtractor.fit(X_train)
         print('Generating feature vector...')
         cacheKey = self.aspect[1] + "_train"
@@ -65,11 +71,22 @@ class LinearClassifier(Model):
         print('Fitting model on training data...')
         self.model.fit(featureVector, y_train)
     
-    def predict(self, reviewsData, mode):
+    def predict(self, reviewsData, mode, aspectPredictions = None):
         X = reviewsData.reviews
         X = util.preprocessInput(X)
         cacheKey = self.aspect[1] + "_" + mode
         if cacheKey not in self.featureVectorCache:
             self.featureVectorCache[cacheKey] = self.featureExtractor.transform(X)        
         featureVector = self.featureVectorCache[cacheKey]
-        return self.model.predict(featureVector)
+        predictions = self.model.predict(featureVector)
+        
+        if self.task == "sentiment" and mode == "test":
+            all_data = pd.concat([X, pd.Series(aspectPredictions), pd.Series(predictions)], axis=1)
+            all_data.columns = ["ReviewText", "AspectPred", "SentimentPred"]
+            all_data.loc[all_data['AspectPred'] == 0, 'SentimentPred'] = 3
+            predictions_fixed = all_data["SentimentPred"]
+            return predictions_fixed
+        
+        return predictions
+
+        

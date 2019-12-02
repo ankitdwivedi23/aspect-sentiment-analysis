@@ -1,13 +1,22 @@
+import numpy as np
+import pandas as pd
+
 class Evaluator():
-    def evalAspectDetection(self, truth, predicted, beta=1):
+    def evalPrecisionRecall(self, truth, predicted, isMultiLabel = False, beta=1):
         totalAspects = 0
         totalPredictions = 0
         totalCorrectPredictions = 0
 
+        if not isMultiLabel:
+            predicted_all = pd.concat([pd.Series(predicted[(0,"ambience")]),pd.Series(predicted[(1,"misc")]), pd.Series(predicted[(2,"food")]), pd.Series(predicted[(3,"price")]), pd.Series(predicted[(4,"service")])], axis=1)
+            predicted_all = predicted_all.values
+        else:
+            predicted_all = predicted
+
         for i in range(truth.shape[0]):
             totalAspects += sum(truth[i])
-            totalPredictions += sum(predicted[i])
-            totalCorrectPredictions += sum([x[1] for x in enumerate(predicted[i]) if x[1] == truth[i][x[0]]])
+            totalPredictions += sum(predicted_all[i])
+            totalCorrectPredictions += sum([x[1] for x in enumerate(predicted_all[i]) if x[1] == truth[i][x[0]]])
         
         precision = totalCorrectPredictions / totalPredictions
         recall = totalCorrectPredictions / totalAspects
@@ -23,13 +32,16 @@ class Evaluator():
 
         return metrics
     
-    def evalSentimentDetection(self, truth, predicted):
+    def evalAccuracy(self, truth, predicted, filter = None):
         metrics = dict()
         allAspectsTotal = 0
         allAspectsCorrect = 0
         for aspect in predicted:
             predictedLabels = predicted[aspect]
             trueLabels = truth[:,aspect[0]]
+            if filter is not None:
+                filterLabels = filter[:,aspect[0]]
+                trueLabels = trueLabels[np.where(filterLabels == 1)]
             total = len(trueLabels)
             correct = sum([1 for i in range(len(trueLabels)) if trueLabels[i] == predictedLabels[i]])
             allAspectsTotal += total
