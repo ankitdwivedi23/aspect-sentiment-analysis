@@ -21,7 +21,7 @@ corpus = [
     'Delicious food',
     ]
 print(corpus)
-features = features.FeatureExtractorV1()
+features = features.FeatureExtractorV1(r"E:\work\Learning\Stanford\project\progress\progress\Data\Train\Lexicons", "food")
 features.fit(corpus)
 X = features.transform(corpus)
 print(X)

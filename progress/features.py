@@ -4,6 +4,8 @@ import pandas as pd
 import math
 import random
 import nltk
+import util
+import collections
 from nltk.util import ngrams
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -73,7 +75,7 @@ class FeatureExtractorV0(FeatureExtractor):
 class FeatureExtractorV1(FeatureExtractor):
     def __init__(self, lexiconPath, aspect):
         self.lexiconPath = lexiconPath
-        #self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
         self.countVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
         self.categories = [aspect]
         self.positive_frequencies = {}
@@ -84,13 +86,16 @@ class FeatureExtractorV1(FeatureExtractor):
         self.N = {}
 
     def fit(self, X):
-        #self.tfidfVectorizer.fit([' '.join(X)])
+        self.tfidfVectorizer.fit([' '.join(X)])
         
         def getFrequencyDictionaryAndN(filePath):
             content = getFileContent(filePath)
+            content = util.preprocessInput(content)
             frequencies = self.countVectorizer.fit_transform(content).sum(axis=0).tolist()[0]
             featureNames = self.countVectorizer.get_feature_names()
             d = dict(zip(featureNames, frequencies)), len(featureNames)
+            #uncomment for log-count ratio
+            #d = dict(zip(featureNames, frequencies)), len(content)
             return d
 
         for c in self.categories:
@@ -108,28 +113,35 @@ class FeatureExtractorV1(FeatureExtractor):
         return self.all_frequencies, self.N
 
     def pmi_score(self, w, context):
-        pmi_score = {}
+        #pmi_score = {}
+        pmi_score = collections.defaultdict(float)
         frequency_context, N_context = self.getFrequencyDictionaryAndN(context)
         frequency_all, N = self.getFrequencyDictionaryAndN("all")
         for c in self.categories:
             if w in frequency_context[c] and w in frequency_all[c]:
                 pmi_score[c] = math.log2( (N[c]*frequency_context[c][w])/(N_context[c]*frequency_all[c][w]) )
+                #uncomment for log-count ratio
+                #pmi_score[c] = (frequency_context[c][w] + 1)/(N_context[c] + 1)
+            #else:
+                #pmi_score[c] = 1/(N_context[c] + 1)
         return pmi_score
     
     def get_pmi_based_score(self, w):
         pmi_score_pos = self.pmi_score(w, "pos")
         pmi_score_neg = self.pmi_score(w, "neg")
-        score = {}
+        #score = {}
+        score = collections.defaultdict(float)
         for c in self.categories:
-            score[c] = 0.0
-            if c in pmi_score_pos and c in pmi_score_neg:
-                score[c] = (pmi_score_pos[c] - pmi_score_neg[c])
+            #score[c] = 0.0
+            #if c in pmi_score_pos and c in pmi_score_neg:
+            score[c] = (pmi_score_pos[c] - pmi_score_neg[c])
+            #uncomment for log-count ratio
+            #score[c] = math.log2(pmi_score_pos[c]/pmi_score_neg[c])
         return score
 
     def transform(self, X):        
         feature_names = self.countVectorizer.get_feature_names()
-        #feature_names = self.tfidfVectorizer.get_feature_names()
-        #tfidf = self.tfidfVectorizer.transform(X)
+        tfidf = self.tfidfVectorizer.transform(X)
         #print(feature_names)
         #m,n = tfidf.toarray().shape
         m = len(X)
@@ -151,8 +163,8 @@ class FeatureExtractorV1(FeatureExtractor):
                     matrix[i, (l*f_n)+j] = 0
                     if c in pmi_scores:
                         matrix[i, (l*f_n)+j] = pmi_scores[c]
-        return csc_matrix(matrix)
-        #return csc_matrix(hstack((matrix, tfidf)))
+        #return csr_matrix(matrix)
+        return hstack([csr_matrix(matrix), tfidf])
 
 ############################################################
 
