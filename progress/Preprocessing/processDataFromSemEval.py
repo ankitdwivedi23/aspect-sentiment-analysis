@@ -2,7 +2,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 all_categories = ['ambience','anecdotes/miscellaneous','food','price','service']
-all_sentiments = ['negative', 'positive', 'neutral', 'conflict', 'na']
+all_sentiments = ['negative', 'positive', 'neutral', 'na']
 
 def convertXmlToTsv(inputXmlFile, outputTsvFile):
     # sentiment label for each aspect
