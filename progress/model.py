@@ -88,5 +88,3 @@ class LinearClassifier(Model):
             return predictions_fixed
         
         return predictions
-
-        
