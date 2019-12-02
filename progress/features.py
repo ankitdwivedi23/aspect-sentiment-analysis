@@ -14,6 +14,7 @@ from scipy.sparse import csc_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import dok_matrix
 from scipy.sparse import hstack
+import nltk.sentiment.sentiment_analyzer
 
 ###########################################################
 # Helper Functions
@@ -210,3 +211,17 @@ class FeatureExtractorV2(FeatureExtractor):
         return featureMatrix
 
 ############################################################
+
+# Version-3 Feature Extractor with negated context of the n-grams along with tf-idf
+
+class FeatureExtractorV3(FeatureExtractor):
+    def __init__(self):
+        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+
+    def fit(self, X):
+        self.tfidfVectorizer.fit([' '.join(nltk.sentiment.util.mark_negation(X))])
+        pass
+
+    def transform(self, X):
+        return self.tfidfVectorizer.transform(nltk.sentiment.util.mark_negation(X))
+        
