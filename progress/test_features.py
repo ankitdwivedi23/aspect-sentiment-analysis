@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.linear_model import SGDClassifier
+import nltk.sentiment.sentiment_analyzer
 import util
 import features
 
@@ -15,13 +16,15 @@ import features
 
 
 corpus = [
-    'This is good food.',
-    'food is not great.',
-    'bad food.',
-    'Delicious food.',
+    'This is good food',
+    'food is not great',
+    'bad food',
+    'Delicious food',
     ]
 print(corpus)
 #features = features.FeatureExtractorV1(r"E:\work\Learning\Stanford\project\progress\progress\Data\Train\Lexicons", "food")
+negating_lambda = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
+print(list(map(negating_lambda, corpus)))
 features = features.FeatureExtractorV3()
 features.fit(corpus)
 X = features.transform(corpus)

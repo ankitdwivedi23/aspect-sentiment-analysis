@@ -218,10 +218,15 @@ class FeatureExtractorV3(FeatureExtractor):
     def __init__(self):
         self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
 
+    def addNegContextToWords(self, X):
+        f = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
+        m = map(f, X)
+        return list(X)
+
     def fit(self, X):
-        self.tfidfVectorizer.fit([' '.join(nltk.sentiment.util.mark_negation(X))])
+        self.tfidfVectorizer.fit([' '.join(self.addNegContextToWords(X))])
         pass
 
     def transform(self, X):
-        return self.tfidfVectorizer.transform(nltk.sentiment.util.mark_negation(X))
+        return self.tfidfVectorizer.transform(self.addNegContextToWords(X))
         

@@ -139,8 +139,8 @@ class Runner:
         sentimentModels = dict()
         for (i,aspect) in enumerate(all_aspects):
             print('Training sentiment model for {0}...'.format(aspect))
-            #sentimentModelFeatureExtractor = features.FeatureExtractorV0()
-            sentimentModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
+            sentimentModelFeatureExtractor = features.FeatureExtractorV3()
+            #sentimentModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
             sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task)
             sentimentModels[(i,aspect)].train(self.reviewsTrain)
         self.sentimentModels = sentimentModels
