@@ -15,13 +15,14 @@ import features
 
 
 corpus = [
-    'This is good food',
-    'food is not great',
-    'bad food',
-    'Delicious food',
+    'This is good food.',
+    'food is not great.',
+    'bad food.',
+    'Delicious food.',
     ]
 print(corpus)
-features = features.FeatureExtractorV1(r"E:\work\Learning\Stanford\project\progress\progress\Data\Train\Lexicons", "food")
+#features = features.FeatureExtractorV1(r"E:\work\Learning\Stanford\project\progress\progress\Data\Train\Lexicons", "food")
+features = features.FeatureExtractorV3()
 features.fit(corpus)
 X = features.transform(corpus)
 print(X)
