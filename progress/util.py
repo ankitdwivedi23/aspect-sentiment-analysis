@@ -2,11 +2,11 @@ import nltk
 import pandas as pd
 from nltk.stem import WordNetLemmatizer
 import re
-from autocorrect import Speller
+#from autocorrect import Speller
 
 nltk.download('wordnet')
 lemmatizer = WordNetLemmatizer()
-spell = Speller(lang='en')
+#spell = Speller(lang='en')
 
 def lemmatize(text):
     lemmedTokens = []
@@ -25,7 +25,8 @@ def preprocessText(text):
     text = re.sub(r'\s+', ' ', text)
     text = text.lower()
     #text = lemmatize(text)
-    return spell(text)
+    #return spell(text)
+    return text
 
 def preprocessInput(X):
         return pd.Series([preprocessText(x) for x in X])
