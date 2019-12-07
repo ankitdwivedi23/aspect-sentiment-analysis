@@ -14,10 +14,14 @@ from scipy.sparse import csc_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import dok_matrix
 from scipy.sparse import hstack
+#arunothia/negated-context
+import nltk.sentiment.sentiment_analyzer
+#=======
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
+# master
 
 ###########################################################
 # Helper Functions
@@ -232,3 +236,22 @@ class FeatureExtractorV2(FeatureExtractor):
         return X_tokens_pad, self.embedding_matrix, self.paddingLength, self.vocabSize
 
 ############################################################
+
+# Version-3 Feature Extractor with negated context of the n-grams along with tf-idf
+
+class FeatureExtractorV3(FeatureExtractor):
+    def __init__(self):
+        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+
+    def addNegContextToWords(self, X):
+        f = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
+        m = map(f, X)
+        return list(m)
+
+    def fit(self, X):
+        self.tfidfVectorizer.fit([' '.join(self.addNegContextToWords(X))])
+        pass
+
+    def transform(self, X):
+        return self.tfidfVectorizer.transform(self.addNegContextToWords(X))
+        
