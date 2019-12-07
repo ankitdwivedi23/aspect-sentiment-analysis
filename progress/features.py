@@ -14,7 +14,14 @@ from scipy.sparse import csc_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import dok_matrix
 from scipy.sparse import hstack
+#arunothia/negated-context
 import nltk.sentiment.sentiment_analyzer
+#=======
+from sklearn.model_selection import train_test_split
+from sklearn import metrics
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+# master
 
 ###########################################################
 # Helper Functions
@@ -169,46 +176,64 @@ class FeatureExtractorV1(FeatureExtractor):
 
 ############################################################
 
-# Version-2 Feature extractor that uses GloVe word embedding vectors along with tf-idf
+# Version-2 Feature extractor that 
+#    i. converts input to sequence of integers using Keras Tokenizer (with post padding)
+#    ii. uses GloVe word embedding vectors to create an embedding matrix for input tokens
 # glovePath: path to pre-trained GloVe weights - https://nlp.stanford.edu/projects/glove/
+# embeddingDim: dimension of GloVe weights
 class FeatureExtractorV2(FeatureExtractor):
-    def __init__(self, glovePath):
-        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
-        self.embeddings = dict()
-        with open(glovePath, encoding='utf-8') as f:
-            for line in f:
-                values = line.split()
-                word = values[0]
-                coefs = np.asarray(values[1:], dtype='float32')
-                self.embeddings[word] = coefs
+    def __init__(self, glovePath, embeddingDim):
+        self.glovePath = glovePath
+        self.embeddingDim = embeddingDim
     
     def fit(self, X):
-        self.tfidfVectorizer.fit([' '.join(X)])
-        pass
+        def getEmbeddings():
+            embeddings_index = {}
+            with open(self.glovePath, encoding='utf-8') as f:
+                for line in f:
+                    values = line.split()
+                    word = values[0]
+                    coefs = np.asarray(values[1:], dtype='float32')
+                    embeddings_index[word] = coefs
+            return embeddings_index
+        
+        def getPaddingLength():
+            word_lengths = [len(x) for x in X]
+            paddingLength = math.ceil(np.percentile(word_lengths, 90))
+            print("Padding Length: {}".format(paddingLength))
+            return paddingLength
+        
+        def fitTokenizer():
+            self.tokenizer_obj = Tokenizer()
+            self.tokenizer_obj.fit_on_texts(X)
+        
+        def getEmbeddingMatrix():
+            num_words = len(self.tokenizer_obj.word_index) + 1
+            embedding_matrix = np.zeros((num_words, self.embeddingDim))
+            word_not_found_count = 0
+            for word, i in self.tokenizer_obj.word_index.items():
+                if i > num_words:
+                    continue
+                embedding_vector = self.embeddings_index.get(word)
+                if embedding_vector is not None:
+                    # words not found in embedding index will be all-zeros.
+                    embedding_matrix[i] = embedding_vector
+                else:
+                    word_not_found_count+=1        
+            print("Word embeddings coverage: {}".format((num_words - word_not_found_count)/num_words))
+            self.vocabSize = num_words
+            return embedding_matrix
+
+        self.embeddings_index = getEmbeddings()
+        self.paddingLength = getPaddingLength()
+        fitTokenizer()
+        self.embedding_matrix = getEmbeddingMatrix()
     
     def transform(self, X):
-        tfidf = self.tfidfVectorizer.transform(X)
-        featureVector = []
-        
-        for x in X:
-            avgEmbeddingVector = np.zeros((100))
-            count = 0
-            for word in x.split():
-                if word in self.embeddings:
-                    count += 1
-                    avgEmbeddingVector = avgEmbeddingVector + self.embeddings[word]
-            if count == 0:
-                print(x)
-            if count > 0:
-                avgEmbeddingVector/=count
-            featureVector.append(avgEmbeddingVector)
-        
-        featureVector = np.asarray(featureVector)
-        embeddingMatrix = csr_matrix(featureVector)
-        print(embeddingMatrix.shape)
-        print(tfidf.shape)
-        featureMatrix = hstack([embeddingMatrix, tfidf])
-        return featureMatrix
+        # pad sequences
+        X_tokens =  self.tokenizer_obj.texts_to_sequences(X)
+        X_tokens_pad = pad_sequences(X_tokens, maxlen=self.paddingLength, padding='post')
+        return X_tokens_pad, self.embedding_matrix, self.paddingLength, self.vocabSize
 
 ############################################################
 

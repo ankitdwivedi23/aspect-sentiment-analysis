@@ -127,21 +127,29 @@ class Runner:
             self.aspectModel = aspectModel
         else:
             aspectModels = dict()
-            aspectModelFeatureExtractor = features.FeatureExtractorV0()
+            lexiconsPath = Path(self.options.trainFile).parent / "AspectLexicons"
+            glovePath = Path(self.options.trainFile).parent / "glove.6B" / "glove.6B.100d.txt"
             for (i,aspect) in enumerate(all_aspects):
                 print('Training aspect model for {0}...'.format(aspect))
-                aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
+                #aspectModelFeatureExtractor = features.FeatureExtractorV0()
+                #aspectModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
+                aspectModelFeatureExtractor = features.FeatureExtractorV2(glovePath, embeddingDim=100)
+                #aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
+                aspectModels[(i,aspect)] = model.BidirectionalGRUModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=100, numClasses=2)
                 aspectModels[(i,aspect)].train(self.reviewsTrain)
             self.aspectModels = aspectModels
     
     def trainSentimentModels(self):
         lexiconsPath = Path(self.options.trainFile).parent / "Lexicons"
+        glovePath = Path(self.options.trainFile).parent / "glove.6B" / "glove.6B.100d.txt"
         sentimentModels = dict()
         for (i,aspect) in enumerate(all_aspects):
             print('Training sentiment model for {0}...'.format(aspect))
-            sentimentModelFeatureExtractor = features.FeatureExtractorV3()
+            #sentimentModelFeatureExtractor = features.FeatureExtractorV0()
             #sentimentModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
-            sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task)
+            sentimentModelFeatureExtractor = features.FeatureExtractorV2(glovePath, embeddingDim=100)
+            #sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task)
+            sentimentModels[(i,aspect)] = model.BidirectionalGRUModel(sentimentModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=100, numClasses=3)
             sentimentModels[(i,aspect)].train(self.reviewsTrain)
         self.sentimentModels = sentimentModels
 
