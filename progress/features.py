@@ -221,7 +221,7 @@ class FeatureExtractorV3(FeatureExtractor):
     def addNegContextToWords(self, X):
         f = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
         m = map(f, X)
-        return list(X)
+        return list(m)
 
     def fit(self, X):
         self.tfidfVectorizer.fit([' '.join(self.addNegContextToWords(X))])
