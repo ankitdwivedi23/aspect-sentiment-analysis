@@ -6,12 +6,26 @@ import model
 import eval
 import features
 import pickle
+import json
+import collections
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
 from pathlib import Path
 
 all_aspects = ['ambience','misc','food','price','service']
 all_sentiments = ['negative', 'positive', 'neutral', 'na']
+
+############################################################
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NumpyEncoder, self).default(obj)
 
 ############################################################
 
@@ -45,6 +59,8 @@ class ReviewsData:
 class Runner:    
     def __init__(self, options):
         self.options = options
+        self.trainMetricsFile = "metrics_train.json"
+        self.testMetricsFile = "metrics_test.json"
 
     def processLabels(self, Y):
         y_split = pd.Series([y.split(',') for y in Y])
@@ -131,11 +147,11 @@ class Runner:
             glovePath = Path(self.options.trainFile).parent / "glove.6B" / "glove.6B.100d.txt"
             for (i,aspect) in enumerate(all_aspects):
                 print('Training aspect model for {0}...'.format(aspect))
-                #aspectModelFeatureExtractor = features.FeatureExtractorV0()
+                aspectModelFeatureExtractor = features.FeatureExtractorV0()
                 #aspectModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
-                aspectModelFeatureExtractor = features.FeatureExtractorV2(glovePath, embeddingDim=100)
-                #aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
-                aspectModels[(i,aspect)] = model.BidirectionalGRUModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=100, numClasses=2)
+                #aspectModelFeatureExtractor = features.FeatureExtractorV2(glovePath, embeddingDim=100)
+                aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
+                #aspectModels[(i,aspect)] = model.BidirectionalGRUModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=100, numClasses=2)
                 aspectModels[(i,aspect)].train(self.reviewsTrain)
             self.aspectModels = aspectModels
     
@@ -190,20 +206,20 @@ class Runner:
             if self.options.mode == "train":
                 trainMetrics = evaluator.evalPrecisionRecall(self.reviewsTrain.aspects, self.trainAspectPredictions, isMultiLabel=True)
                 print('=============Aspect Detection Training Metrics==========')
-                self.printEvalMetrics(trainMetrics)
+                self.printEvalMetrics(trainMetrics, self.trainMetricsFile)
             testMetrics = evaluator.evalPrecisionRecall(self.reviewsTest.aspects, self.testAspectPredictions, isMultiLabel=True)
             print('=============Aspect Detection Test Metrics==============')
-            self.printEvalMetrics(testMetrics)        
+            self.printEvalMetrics(testMetrics, self.testMetricsFile)
         else:
             print('Evaluating sentiment models...')
             evaluator = eval.Evaluator()
             if self.options.mode == "train":
                 trainMetrics = evaluator.evalPrecisionRecall(self.reviewsTrain.aspects, self.trainAspectPredictions)
                 print('=============Aspect Detection Training Metrics==========')
-                self.printEvalMetrics(trainMetrics)
+                self.printEvalMetrics(trainMetrics, self.trainMetricsFile)
             testMetrics = evaluator.evalPrecisionRecall(self.reviewsTest.aspects, self.testAspectPredictions)
             print('=============Aspect Detection Test Metrics==============')
-            self.printEvalMetrics(testMetrics)
+            self.printEvalMetrics(testMetrics, self.testMetricsFile)
     
     def evalSentimentModels(self):
         print('Evaluating sentiment models...')
@@ -211,10 +227,10 @@ class Runner:
         if self.options.mode == "train":
             trainMetrics = evaluator.evalAccuracy(self.reviewsTrain.sentiments, self.trainSentimentPredictions, self.reviewsTrain.aspects)
             print('=============Sentiment Detection Training Metrics==========')
-            self.printEvalMetrics(trainMetrics)
+            self.printEvalMetrics(trainMetrics, self.trainMetricsFile)
         testMetrics = evaluator.evalAccuracy(self.reviewsTest.sentiments, self.testSentimentPredictions)
         print('=============Sentiment Detection Test Metrics==============')
-        self.printEvalMetrics(testMetrics)
+        self.printEvalMetrics(testMetrics, self.testMetricsFile)
 
     def writeOutput(self, predictions, outputFile, reviews, isMultiLabel=False):
         aspects = [",".join([str(x) for x in labels.tolist()]) for labels in reviews.aspects]
@@ -258,9 +274,11 @@ class Runner:
             outputPath = self.options.outputPath + "/" + (Path(self.options.trainFile).name if self.options.testFile is None else Path(self.options.testFile).name)       
             self.writeOutput(self.testSentimentPredictions[(i,aspect)], outputPath + "." + aspect + ".sentiment.test.output", self.reviewsTest)    
     
-    def printEvalMetrics(self, metrics):
+    def printEvalMetrics(self, metrics, outputFile):
         for m in metrics:
-            print("{0} = {1}".format(m, metrics[m]))    
+            print("{0} = {1}".format(m, metrics[m]))
+        with open(outputFile, 'w', encoding='utf-8') as jsonfile:
+            json.dump(metrics, jsonfile, ensure_ascii=False, indent=2, cls=NumpyEncoder)
 
     def run(self):
         self.readData()
