@@ -30,7 +30,7 @@ class NumpyEncoder(json.JSONEncoder):
 ############################################################
 
 class Options:
-    def __init__(self, task, mode, version, isMultiLabel, modelPath, outputPath, trainFile, testFile):
+    def __init__(self, task, mode, version, isMultiLabel, modelPath, outputPath, trainFile, wordVecFile, wordVecDim, testFile):
         self.task = task
         self.mode = mode
         self.version = version
@@ -38,6 +38,8 @@ class Options:
         self.modelPath = modelPath
         self.outputPath = outputPath
         self.trainFile = trainFile
+        self.wordVecFile = wordVecFile
+        self.wordVecDim = wordVecDim
         self.testFile = testFile
 
 #  Class for train/test data and labels
@@ -144,28 +146,27 @@ class Runner:
         else:
             aspectModels = dict()
             lexiconsPath = Path(self.options.trainFile).parent / "AspectLexicons"
-            glovePath = Path(self.options.trainFile).parent / "glove.6B" / "glove.6B.100d.txt"
             for (i,aspect) in enumerate(all_aspects):
                 print('Training aspect model for {0}...'.format(aspect))
-                aspectModelFeatureExtractor = features.FeatureExtractorV0()
+                #aspectModelFeatureExtractor = features.FeatureExtractorV0()
                 #aspectModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
-                #aspectModelFeatureExtractor = features.FeatureExtractorV2(glovePath, embeddingDim=100)
-                aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
-                #aspectModels[(i,aspect)] = model.BidirectionalGRUModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=100, numClasses=2)
+                aspectModelFeatureExtractor = features.FeatureExtractorV2(self.options.wordVecFile, embeddingDim=self.options.wordVecDim)
+                #aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
+                aspectModels[(i,aspect)] = model.BidirectionalGRUModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=self.options.wordVecDim, numClasses=2)
                 aspectModels[(i,aspect)].train(self.reviewsTrain)
             self.aspectModels = aspectModels
     
     def trainSentimentModels(self):
         lexiconsPath = Path(self.options.trainFile).parent / "Lexicons"
-        glovePath = Path(self.options.trainFile).parent / "glove.6B" / "glove.6B.100d.txt"
         sentimentModels = dict()
         for (i,aspect) in enumerate(all_aspects):
             print('Training sentiment model for {0}...'.format(aspect))
             #sentimentModelFeatureExtractor = features.FeatureExtractorV0()
             #sentimentModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
-            sentimentModelFeatureExtractor = features.FeatureExtractorV2(glovePath, embeddingDim=100)
+            sentimentModelFeatureExtractor = features.FeatureExtractorV2(self.options.wordVecFile, embeddingDim=self.options.wordVecDim)
+            #sentimentModelFeatureExtractor = features.FeatureExtractorV3()
             #sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task)
-            sentimentModels[(i,aspect)] = model.BidirectionalGRUModel(sentimentModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=100, numClasses=3)
+            sentimentModels[(i,aspect)] = model.BidirectionalGRUModel(sentimentModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=self.options.wordVecDim, numClasses=3)
             sentimentModels[(i,aspect)].train(self.reviewsTrain)
         self.sentimentModels = sentimentModels
 
@@ -194,7 +195,8 @@ class Runner:
             
             #load aspect predictions
             filename = Path(self.options.trainFile).name + "." + aspect + ".aspect.test.output"
-            aspectPredFile = self.options.outputPath + "/" + filename
+            #aspectPredFile = self.options.outputPath + "/" + filename
+            aspectPredFile = Path(self.options.trainFile).parent / filename
             data = pd.read_csv(aspectPredFile, delimiter='\t', encoding='utf-8', keep_default_na=False)
             aspectPreds = data["AspectPred"].values
             self.testSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTest, "test", aspectPreds)
@@ -211,7 +213,7 @@ class Runner:
             print('=============Aspect Detection Test Metrics==============')
             self.printEvalMetrics(testMetrics, self.testMetricsFile)
         else:
-            print('Evaluating sentiment models...')
+            print('Evaluating aspect models...')
             evaluator = eval.Evaluator()
             if self.options.mode == "train":
                 trainMetrics = evaluator.evalPrecisionRecall(self.reviewsTrain.aspects, self.trainAspectPredictions)
@@ -321,9 +323,15 @@ if __name__ == '__main__':
     mode = sys.argv[2]
     version = sys.argv[3]
     isMultiLabel = str2bool(sys.argv[4])
-    modelPath = sys.argv[5]
-    outputPath = sys.argv[6]
-    trainFile = sys.argv[7]
+    modelPath = "Models"
+    outputPath = "Output"
+    trainFile = sys.argv[5]
+    wordVecFile = None
+    if len(sys.argv) > 6:
+        wordVecFile = sys.argv[6]
+    wordVecDim = None
+    if len(sys.argv) > 7:
+        wordVecDim = int(sys.argv[7])
     testFile = None
     if len(sys.argv) > 8:
         testFile = sys.argv[8]
@@ -335,7 +343,5 @@ if __name__ == '__main__':
     if not os.path.exists(modelPath):
         os.makedirs(modelPath)
 
-    options = Options(task, mode, version, isMultiLabel, modelPath, outputPath, trainFile, testFile)
+    options = Options(task, mode, version, isMultiLabel, modelPath, outputPath, trainFile, wordVecFile, wordVecDim, testFile)
     main(options)
-
-    
