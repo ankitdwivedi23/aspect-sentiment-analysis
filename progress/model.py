@@ -149,12 +149,12 @@ class BidirectionalGRUModel(Model):
         
         x = Dense(units=512, activation="relu")(add)
         x = Dropout(rate=0.25)(x)
-        x = Dense(units=self.numClasses, activation="sigmoid")(x)
+        x = Dense(units=self.numClasses, activation="softmax")(x)
         self.model = keras.models.Model(inputs=inp, outputs=x)
-        self.model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+        self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
         
         y_onehot = encodeLabels()
-        self.model.fit(X_tokens_pad, y_onehot, batch_size=64, epochs=25, verbose=2)
+        self.model.fit(X_tokens_pad, y_onehot, batch_size=64, epochs=30, verbose=2)
     
     def predict(self, reviewsData, mode, aspectPredictions = None):
         X = reviewsData.reviews
@@ -169,8 +169,3 @@ class BidirectionalGRUModel(Model):
             predictions_fixed = all_data["SentimentPred"]
             return predictions_fixed            
         return y_predict_label
-        
-
-        
-
-

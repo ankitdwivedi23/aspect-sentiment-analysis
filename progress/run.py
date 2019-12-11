@@ -299,7 +299,7 @@ class Runner:
         elif self.options.task == "sentiment":
             if self.options.mode == "train":
                 self.trainSentimentModels()
-                self.saveSentimentModels()
+                #self.saveSentimentModels()
             elif self.options.mode == "test":
                 self.loadSentimentModels()
             else:
