@@ -78,32 +78,54 @@ def printFeatureScore(test, train, corpus, featureNames, weights):
 #negating_lambda = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
 #print(list(map(negating_lambda, corpus)))
 
-
-#X = features.FeatureExtractorV1(pmi_file_path, "food")
-#X = features.FeatureExtractorV4(aspect_pmi_file_path, "food")
-
-X = features.FeatureExtractorV0()
-
-
-(reviews, aspects, sentiments) = readData(filePath)
-data = run.ReviewsData(reviews, aspects, sentiments)
-sentimentMod = model.LinearClassifier(X, (4, "service"), "sentiment")
-corpus = sentimentMod.train(data).tolist()
-weights = sentimentMod.model.coef_
-
 #corpus = reviews.tolist()
 #print(corpus)
 
 #X.fit(corpus)
 #train = X.transform(corpus)
-featureNames = sentimentMod.featureExtractor.tfidfVectorizer.get_feature_names()
 
-#print(len(weights[0]))
-#print(len(weights[1]))
-#print(len(weights[2]))
-#print(len(featureNames))
+#X = features.FeatureExtractorV1(pmi_file_path, "food")
+#X = features.FeatureExtractorV4(aspect_pmi_file_path, "food")
 
-test = ["We have never had any problems with charging the meal or the tip, and the food was delivered quickly, but we live only a few minutes walk from them.", \
-    "I go out to eat and like my courses, servers are patient and never rush courses or force another drink.", "I asked for a menu and the same waitress looked at my like I was insane."]
-printFeatureScore(test, sentimentMod.featureVectorCache["service_train"].toarray(), corpus, featureNames, weights)
 
+def tfidf_ngrams_compare():
+    X = features.FeatureExtractorV0()
+
+    (reviews, aspects, sentiments) = readData(filePath)
+    data = run.ReviewsData(reviews, aspects, sentiments)
+    sentimentMod = model.LinearClassifier(X, (4, "service"), "sentiment")
+    corpus = sentimentMod.train(data).tolist()
+    weights = sentimentMod.model.coef_
+
+    
+    featureNames = sentimentMod.featureExtractor.tfidfVectorizer.get_feature_names()
+    
+    # Reviews where tf-idf with 1-3 ngrams work but with only 1-gram don't work.
+    # The first two are positive and the last is negative
+
+    test = ["We have never had any problems with charging the meal or the tip, and the food was delivered quickly, but we live only a few minutes walk from them.", \
+        "I go out to eat and like my courses, servers are patient and never rush courses or force another drink.", "I asked for a menu and the same waitress looked at my like I was insane."]
+    printFeatureScore(test, sentimentMod.featureVectorCache["service_train"].toarray(), corpus, featureNames, weights)
+    return
+    
+def tfidf_pmi_compare():
+    X = features.FeatureExtractorV0()
+    #X = features.FeatureExtractorV1(pmi_file_path, "food")
+
+    (reviews, aspects, sentiments) = readData(filePath)
+    data = run.ReviewsData(reviews, aspects, sentiments)
+    sentimentMod = model.LinearClassifier(X, (2, "food"), "sentiment")
+    corpus = sentimentMod.train(data).tolist()
+    weights = sentimentMod.model.coef_
+
+    featureNames = sentimentMod.featureExtractor.tfidfVectorizer.get_feature_names()
+    
+    # Reviews where tf-idf works but PMI does not. The first two are negative sentiments and the last two are positive
+
+    test = ["The sauce tasted more like Chinese fast food than decent Korean.", \
+        "The miso soup lacked flavor and the fish was unfortunately not as well prepared as in the past.", "My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", \
+        "Largest and freshest pieces of sushi, and delicious!"]
+    printFeatureScore(test, sentimentMod.featureVectorCache["food_train"].toarray(), corpus, featureNames, weights)
+    return
+
+tfidf_pmi_compare()
