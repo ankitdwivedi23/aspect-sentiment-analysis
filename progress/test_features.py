@@ -59,6 +59,9 @@ def printFeatureScore(test, train, corpus, featureNames, weights):
             print("*****************Review**************** " + r)
             for j,w in enumerate(featureNames):
                 #print(train[i][j])
+                if j >= len(train[i]):
+                    print("$$$Somehow j went beyond bounds - " + str(j))
+                    continue
                 if train[i][j] != 0:
                     print(w + " - " + str(train[i][j]))
                     print('Weight - Target - 0 - ' + str(weights[0][j]))
@@ -128,4 +131,42 @@ def tfidf_pmi_compare():
     printFeatureScore(test, sentimentMod.featureVectorCache["food_train"].toarray(), corpus, featureNames, weights)
     return
 
-tfidf_pmi_compare()
+def tfidf_log_ratio_compare():
+    #X = features.FeatureExtractorV0()
+    X = features.FeatureExtractorV4(pmi_file_path, "food")
+
+    (reviews, aspects, sentiments) = readData(filePath)
+    data = run.ReviewsData(reviews, aspects, sentiments)
+    sentimentMod = model.LinearClassifier(X, (2, "food"), "sentiment")
+    corpus = sentimentMod.train(data).tolist()
+    weights = sentimentMod.model.coef_
+
+    featureNames = sentimentMod.featureExtractor.tfidfVectorizer.get_feature_names()
+    
+    # Reviews where tf-idf works but log-count ratio does not. All are negative.
+
+    test = ["The sauce tasted more like Chinese fast food than decent Korean.", \
+        "The miso soup lacked flavor and the fish was unfortunately not as well prepared as in the past.", "Over price, and small portions .", \
+        "After we got our sashimi order, I could not believe how small the portions were!"]
+    printFeatureScore(test, sentimentMod.featureVectorCache["food_train"].toarray(), corpus, featureNames, weights)
+    return
+    
+def tfidf_neg_context_compare():
+    #X = features.FeatureExtractorV0()
+    X = features.FeatureExtractorV3()
+
+    (reviews, aspects, sentiments) = readData(filePath)
+    data = run.ReviewsData(reviews, aspects, sentiments)
+    sentimentMod = model.LinearClassifier(X, (2, "food"), "sentiment")
+    corpus = sentimentMod.train(data).tolist()
+    weights = sentimentMod.model.coef_
+
+    featureNames = sentimentMod.featureExtractor.tfidfVectorizer.get_feature_names()
+    
+    # Reviews where tf-idf works but log-count ratio does not. All are negative.
+
+    test = []
+    printFeatureScore(test, sentimentMod.featureVectorCache["food_train"].toarray(), corpus, featureNames, weights)
+    return
+
+tfidf_neg_context_compare()
