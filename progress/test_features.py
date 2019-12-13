@@ -7,25 +7,103 @@ from sklearn.linear_model import SGDClassifier
 import nltk.sentiment.sentiment_analyzer
 import util
 import features
+import model
+import run
 
-#data_folder = Path("../../p-progress/Data/Train/")
-#filepath = data_folder / "yelp_neutral_reviews"
+#import nltk
+#nltk.download('punkt')
 
-#with open(filepath) as f:
-#    corpus = f.read()
+#from nltk.tokenize import word_tokenize
+#from nltk.util import ngrams
+
+##########################################################
+#def get_ngrams(text, n ):
+#    n_grams = ngrams(word_tokenize(text), n)
+#    return [ ' '.join(grams) for grams in n_grams]
+
+#def get_ngrams_from_review(x, k):
+#    words = []
+#    for i in range(1,k+1):
+#        words += get_ngrams(x, i)
+#    return words
+
+def processLabels(Y):
+        y_split = pd.Series([y.split(',') for y in Y])
+        y_split = y_split.values.tolist()
+        y_split_int = []
+        for y in y_split:
+            y_split_int.append([int(label) for label in y])
+        return np.array(y_split_int)
+
+###########################################################
 
 
-corpus = [
-    'This is good food',
-    'food is not great',
-    'bad food',
-    'Delicious food',
-    ]
-print(corpus)
-#features = features.FeatureExtractorV1(r"E:\work\Learning\Stanford\project\progress\progress\Data\Train\Lexicons", "food")
-negating_lambda = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
-print(list(map(negating_lambda, corpus)))
-features = features.FeatureExtractorV3()
-features.fit(corpus)
-X = features.transform(corpus)
-print(X)
+data_folder = Path("data")
+filePath = data_folder / "Restaurants_Train_All.tsv"
+pmi_file_path = data_folder / "Lexicons"
+aspect_pmi_file_path = data_folder / "AspectLexicons"
+
+def readData(trainFile):
+    if trainFile is not None:
+        trainData = pd.read_csv(trainFile, header=None, delimiter='\t', encoding='utf-8', keep_default_na=False)
+    return (trainData.iloc[:,1], processLabels(trainData.iloc[:,3]), processLabels(trainData.iloc[:,5]))
+
+
+# Helper Function for Error Anaylysis: Print Feature scores for a given Review
+
+def printFeatureScore(test, train, corpus, featureNames, weights):
+    test = util.preprocessInput(test).tolist()
+    #print(test)
+    for i,r in enumerate(corpus):
+        if r in test:
+            print("*****************Review**************** " + r)
+            for j,w in enumerate(featureNames):
+                #print(train[i][j])
+                if train[i][j] != 0:
+                    print(w + " - " + str(train[i][j]))
+                    print('Weight - Target - 0 - ' + str(weights[0][j]))
+                    print('Weight - Target - 1 - ' + str(weights[1][j]))
+                    print('Weight - Target - 2 - ' + str(weights[2][j]))
+    return
+
+
+#corpus = [
+#    'This is good food',
+#    'food is not great',
+#    'bad food',
+#    'Delicious food',
+#    ]
+
+#print(corpus)
+#negating_lambda = lambda x: " ".join(nltk.sentiment.util.mark_negation(x.split()))
+#print(list(map(negating_lambda, corpus)))
+
+
+#X = features.FeatureExtractorV1(pmi_file_path, "food")
+#X = features.FeatureExtractorV4(aspect_pmi_file_path, "food")
+
+X = features.FeatureExtractorV0()
+
+
+(reviews, aspects, sentiments) = readData(filePath)
+data = run.ReviewsData(reviews, aspects, sentiments)
+sentimentMod = model.LinearClassifier(X, (4, "service"), "sentiment")
+corpus = sentimentMod.train(data).tolist()
+weights = sentimentMod.model.coef_
+
+#corpus = reviews.tolist()
+#print(corpus)
+
+#X.fit(corpus)
+#train = X.transform(corpus)
+featureNames = sentimentMod.featureExtractor.tfidfVectorizer.get_feature_names()
+
+#print(len(weights[0]))
+#print(len(weights[1]))
+#print(len(weights[2]))
+#print(len(featureNames))
+
+test = ["We have never had any problems with charging the meal or the tip, and the food was delivered quickly, but we live only a few minutes walk from them.", \
+    "I go out to eat and like my courses, servers are patient and never rush courses or force another drink.", "I asked for a menu and the same waitress looked at my like I was insane."]
+printFeatureScore(test, sentimentMod.featureVectorCache["service_train"].toarray(), corpus, featureNames, weights)
+
