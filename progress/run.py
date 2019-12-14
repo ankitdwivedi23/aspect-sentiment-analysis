@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 import numpy as np
@@ -137,7 +138,7 @@ class Runner:
 
     def trainAspectModels(self):
         if self.options.isMultiLabel:
-            aspectModelFeatureExtractor = features.FeatureExtractorV0()        
+            aspectModelFeatureExtractor = features.TfIdfFeatureExtractor()        
             aspectModel = None        
             print('Training aspect model...')
             aspectModel = model.OneVsRestLinearClassifier(aspectModelFeatureExtractor)
@@ -148,11 +149,31 @@ class Runner:
             lexiconsPath = Path(self.options.trainFile).parent / "AspectLexicons"
             for (i,aspect) in enumerate(all_aspects):
                 print('Training aspect model for {0}...'.format(aspect))
-                #aspectModelFeatureExtractor = features.FeatureExtractorV0()
-                #aspectModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
-                aspectModelFeatureExtractor = features.FeatureExtractorV2(self.options.wordVecFile, embeddingDim=self.options.wordVecDim)
-                #aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task)
-                aspectModels[(i,aspect)] = model.BidirectionalGRUModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=self.options.wordVecDim, numClasses=2)
+                #MNB using BoW features
+                if self.options.version == 'v0':
+                    aspectModelFeatureExtractor = features.CountFeatureExtractor()
+                    aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+                #linear SVM using BoW features
+                elif self.options.version == 'v1':
+                    aspectModelFeatureExtractor = features.CountFeatureExtractor()
+                    aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+                #linear SVM using tf-idf
+                elif self.options.version == 'v2':
+                    aspectModelFeatureExtractor = features.TfIdfFeatureExtractor()
+                    aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+                #linear SVM using PMI
+                elif self.options.version == 'v3':
+                    aspectModelFeatureExtractor = features.PmiFeatureExtractor(lexiconsPath, aspect)
+                    aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+                #linear SVM using log count ratio
+                elif self.options.version == 'v4':
+                    aspectModelFeatureExtractor = features.LogCountRatioFeatureExtractor(lexiconsPath, aspect)
+                    aspectModels[(i,aspect)] = model.LinearClassifier(aspectModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+                #RNN variant using glove vectors
+                else:
+                    aspectModelFeatureExtractor = features.GloveFeatureExtractor(self.options.wordVecFile, self.options.wordVecDim)
+                    aspectModels[(i,aspect)] = model.RNNModel(aspectModelFeatureExtractor, (i,aspect), self.options.task, self.options.version, embeddingDim=self.options.wordVecDim, numClasses=2)
+                
                 aspectModels[(i,aspect)].train(self.reviewsTrain)
             self.aspectModels = aspectModels
     
@@ -161,12 +182,30 @@ class Runner:
         sentimentModels = dict()
         for (i,aspect) in enumerate(all_aspects):
             print('Training sentiment model for {0}...'.format(aspect))
-            #sentimentModelFeatureExtractor = features.FeatureExtractorV0()
-            #sentimentModelFeatureExtractor = features.FeatureExtractorV1(lexiconsPath, aspect)
-            sentimentModelFeatureExtractor = features.FeatureExtractorV2(self.options.wordVecFile, embeddingDim=self.options.wordVecDim)
-            #sentimentModelFeatureExtractor = features.FeatureExtractorV3()
-            #sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task)
-            sentimentModels[(i,aspect)] = model.BidirectionalGRUModel(sentimentModelFeatureExtractor, (i,aspect), self.options.task, embeddingDim=self.options.wordVecDim, numClasses=3)
+            #MNB using BoW features
+            if self.options.version == 'v0':
+                sentimentModelFeatureExtractor = features.CountFeatureExtractor()
+                sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+            #linear SVM using BoW features
+            elif self.options.version == 'v1':
+                sentimentModelFeatureExtractor = features.CountFeatureExtractor()
+                sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+            #linear SVM using tf-idf
+            elif self.options.version == 'v2':
+                sentimentModelFeatureExtractor = features.TfIdfFeatureExtractor()
+                sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+            #linear SVM using PMI
+            elif self.options.version == 'v3':
+                sentimentModelFeatureExtractor = features.PmiFeatureExtractor(lexiconsPath, aspect)
+                sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+            #linear SVM using negated context tf-idf
+            elif self.options.version == 'v4':
+                sentimentModelFeatureExtractor = features.NegatedContextFeatureExtractor()
+                sentimentModels[(i,aspect)] = model.LinearClassifier(sentimentModelFeatureExtractor, (i,aspect), self.options.task, self.options.version)
+            #RNN variant using glove vectors
+            else:
+                sentimentModelFeatureExtractor = features.GloveFeatureExtractor(self.options.wordVecFile, self.options.wordVecDim)
+                sentimentModels[(i,aspect)] = model.RNNModel(sentimentModelFeatureExtractor, (i,aspect), self.options.task, self.options.version, embeddingDim=self.options.wordVecDim, numClasses=3)
             sentimentModels[(i,aspect)].train(self.reviewsTrain)
         self.sentimentModels = sentimentModels
 
@@ -188,6 +227,8 @@ class Runner:
     def runSentimentModels(self):
         self.trainSentimentPredictions = dict()
         self.testSentimentPredictions = dict()
+        self.aspectPreds = dict()
+
         for (i,aspect) in self.sentimentModels:
             print('Running sentiment detection model for {0}...'.format(aspect)) 
             if self.options.mode == "train":
@@ -198,8 +239,9 @@ class Runner:
             #aspectPredFile = self.options.outputPath + "/" + filename
             aspectPredFile = Path(self.options.trainFile).parent / filename
             data = pd.read_csv(aspectPredFile, delimiter='\t', encoding='utf-8', keep_default_na=False)
-            aspectPreds = data["AspectPred"].values
-            self.testSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTest, "test", aspectPreds)
+            self.aspectPreds[aspect] = data["AspectPred"]
+            self.testSentimentPredictions[(i,aspect)] = self.sentimentModels[(i,aspect)].predict(self.reviewsTest, "test", self.aspectPreds[aspect])
+        self.AllAspectPreds = pd.concat([self.aspectPreds['ambience'],self.aspectPreds['misc'], self.aspectPreds['food'], self.aspectPreds['price'], self.aspectPreds['service']], axis=1)
     
     def evalAspectModels(self):
         if self.options.isMultiLabel:
@@ -287,7 +329,7 @@ class Runner:
         if self.options.task == "aspect":
             if self.options.mode == "train":
                 self.trainAspectModels()
-                self.saveAspectModels()
+                #self.saveAspectModels()
             elif self.options.mode == "test":
                 self.loadAspectModels()
             else:
@@ -318,30 +360,38 @@ def main(options):
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
+def parseArgs():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--task', help='aspect or sentiment')
+    parser.add_argument('--mode', help='train or test')
+    parser.add_argument('--version', help='version')
+    parser.add_argument('--isMultiLabel', help='isMultiLabel')
+    parser.add_argument('--trainFile', help='path to train file')
+    parser.add_argument('--wordVecFile', help='word embedding weights file')
+    parser.add_argument('--wordVecDim', type=int, help='word embedding dimension')
+    parser.add_argument('--testFile', help='path to test file')
+    args = parser.parse_args()
+    return args
+
+
+
 if __name__ == '__main__':
-    task = sys.argv[1]
-    mode = sys.argv[2]
-    version = sys.argv[3]
-    isMultiLabel = str2bool(sys.argv[4])
+    args = parseArgs()
+    
+    print(args.task)
+    print(args.mode)
+    print(args.version)
+    print(args.isMultiLabel)
+    print(args.trainFile)
+
     modelPath = "Models"
     outputPath = "Output"
-    trainFile = sys.argv[5]
-    wordVecFile = None
-    if len(sys.argv) > 6:
-        wordVecFile = sys.argv[6]
-    wordVecDim = None
-    if len(sys.argv) > 7:
-        wordVecDim = int(sys.argv[7])
-    testFile = None
-    if len(sys.argv) > 8:
-        testFile = sys.argv[8]
-    
-    outputPath = outputPath + "/" + version
-    modelPath = modelPath + "/" + version
+
+    outputPath = outputPath + "/" + args.version
+    modelPath = modelPath + "/" + args.version
     if not os.path.exists(outputPath):
         os.makedirs(outputPath)
     if not os.path.exists(modelPath):
         os.makedirs(modelPath)
 
-    options = Options(task, mode, version, isMultiLabel, modelPath, outputPath, trainFile, wordVecFile, wordVecDim, testFile)
-    main(options)
+    main(args)

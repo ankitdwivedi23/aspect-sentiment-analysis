@@ -37,16 +37,16 @@ class Evaluator():
         allAspectsTotal = 0
         allAspectsCorrect = 0
         for aspect in predicted:
-            predictedLabels = predicted[aspect].to_numpy()
+            predictedLabels = np.array(predicted[aspect])
             trueLabels = truth[:,aspect[0]]
+            print(predictedLabels.shape)
+            print(trueLabels.shape)
             if filter is not None:
-                filterLabels = filter[:,aspect[0]]
+                print(type(filter))
+                filterLabels = filter[:,aspect[0]]                
                 trueLabels = trueLabels[np.where(filterLabels == 1)]
-                predictedLabels = predictedLabels[np.where(filterLabels == 1)]
-            print(type(predictedLabels))
-            print(len(predictedLabels))
-            print(type(trueLabels))
-            print(len(trueLabels))
+                if(predictedLabels.shape[0] == filterLabels.shape[0]):
+                    predictedLabels = predictedLabels[np.where(filterLabels == 1)]
 
             total = len(trueLabels)
             correct = sum([1 for i in range(len(trueLabels)) if trueLabels[i] == predictedLabels[i]])
