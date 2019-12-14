@@ -14,14 +14,11 @@ from scipy.sparse import csc_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import dok_matrix
 from scipy.sparse import hstack
-#arunothia/negated-context
 import nltk.sentiment.sentiment_analyzer
-#=======
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-# master
 
 ###########################################################
 # Helper Functions
@@ -63,9 +60,22 @@ class FeatureExtractor:
         raise NotImplementedError("Override me")
 ############################################################
 
+# Basic feature extractor that uses scikit-learn's CountVectorizer
+# to create BoW features
+class CountFeatureExtractor(FeatureExtractor):
+    def __init__(self):
+        self.countVectorizer = CountVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+    
+    def fit(self, X):
+        self.countVectorizer.fit([' '.join(X)])
+    
+    def transform(self, X):
+        return self.countVectorizer.transform(X)
+############################################################
+
 # Basic feature extractor that uses scikit-learn's TfidfVectorizer
 # to create ngram features with tf-idf scores as feature values
-class FeatureExtractorV0(FeatureExtractor):
+class TfIdfFeatureExtractor(FeatureExtractor):
     def __init__(self):
         self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
     
@@ -76,14 +86,11 @@ class FeatureExtractorV0(FeatureExtractor):
         return self.tfidfVectorizer.transform(X)
 ############################################################
 
-# Version-1 Feature extractor that uses scikit-learn's TfidfVectorizer
-# to create ngram features with tf-idf scores as feature values and 
-# custom implementation of PMI scores using scikit-learn's CountVectorizer
-# To evaluate the n-gram frequencies. 
-class FeatureExtractorV1(FeatureExtractor):
+# Custom implementation of PMI scores using scikit-learn's CountVectorizer 
+class PmiFeatureExtractor(FeatureExtractor):
     def __init__(self, lexiconPath, aspect):
         self.lexiconPath = lexiconPath
-        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+        #self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
         self.countVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
         self.categories = [aspect]
         self.positive_frequencies = {}
@@ -94,7 +101,7 @@ class FeatureExtractorV1(FeatureExtractor):
         self.N = {}
 
     def fit(self, X):
-        self.tfidfVectorizer.fit([' '.join(X)])
+        #self.tfidfVectorizer.fit([' '.join(X)])
         
         def getFrequencyDictionaryAndN(filePath):
             content = getFileContent(filePath)
@@ -138,18 +145,14 @@ class FeatureExtractorV1(FeatureExtractor):
 
     def transform(self, X):        
         feature_names = self.countVectorizer.get_feature_names()
-        tfidf = self.tfidfVectorizer.transform(X)
-        #print(feature_names)
-        #m,n = tfidf.toarray().shape
+        #tfidf = self.tfidfVectorizer.transform(X)
         m = len(X)
         feature_num_names = {k:v for v,k in enumerate(feature_names)}
-        #print("(m,n) = ", (m,n))
         l,f = len(self.categories), len(feature_names)
-        print("(l,f) = ", (l,f))
+        #print("(l,f) = ", (l,f))
         matrix = dok_matrix((m,f*l))
-        print("dok_matrix: ", matrix.shape)
+        #print("dok_matrix: ", matrix.shape)
         for i in range(m):
-            #print(X[i])
             grams = extract_ngrams(X[i], 1) + extract_ngrams(X[i], 2) + extract_ngrams(X[i], 3)
             for feature in grams:
                 if feature not in feature_names:
@@ -160,17 +163,16 @@ class FeatureExtractorV1(FeatureExtractor):
                     matrix[i, (l*f_n)+j] = 0
                     if c in pmi_scores:
                         matrix[i, (l*f_n)+j] = pmi_scores[c]
-        #return csr_matrix(matrix)
-        return hstack([csr_matrix(matrix), tfidf])
+        return csr_matrix(matrix)
 
 ############################################################
 
-# Version-2 Feature extractor that 
+# Feature Extractor for RNNs that 
 #    i. converts input to sequence of integers using Keras Tokenizer (with post padding)
 #    ii. uses GloVe word embedding vectors to create an embedding matrix for input tokens
 # glovePath: path to pre-trained GloVe weights - https://nlp.stanford.edu/projects/glove/
 # embeddingDim: dimension of GloVe weights
-class FeatureExtractorV2(FeatureExtractor):
+class GloveFeatureExtractor(FeatureExtractor):
     def __init__(self, glovePath, embeddingDim):
         self.glovePath = glovePath
         self.embeddingDim = embeddingDim
@@ -228,7 +230,7 @@ class FeatureExtractorV2(FeatureExtractor):
 
 # Version-3 Feature Extractor with negated context of the n-grams along with tf-idf
 
-class FeatureExtractorV3(FeatureExtractor):
+class NegatedContextFeatureExtractor(FeatureExtractor):
     def __init__(self):
         self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
 
@@ -246,14 +248,11 @@ class FeatureExtractorV3(FeatureExtractor):
         
 ############################################################
 
-# Version-1 Feature extractor that uses scikit-learn's TfidfVectorizer
-# to create ngram features with tf-idf scores as feature values and 
-# custom implementation of log-count Ratio scores using scikit-learn's CountVectorizer
-# To evaluate the n-gram frequencies. 
-class FeatureExtractorV4(FeatureExtractor):
+# custom implementation of log-count Ratio scores using scikit-learn's CountVectorizer 
+class LogCountRatioFeatureExtractor(FeatureExtractor):
     def __init__(self, lexiconPath, aspect):
         self.lexiconPath = lexiconPath
-        self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
+        #self.tfidfVectorizer = TfidfVectorizer(ngram_range=(1,3), min_df=0.001, stop_words='english')
         self.countVectorizer = CountVectorizer(stop_words="english", analyzer='word', ngram_range=(1, 3), min_df=0.001)
         self.categories = [aspect]
         self.positive_frequencies = {}
@@ -264,7 +263,7 @@ class FeatureExtractorV4(FeatureExtractor):
         self.N = {}
 
     def fit(self, X):
-        self.tfidfVectorizer.fit([' '.join(X)])
+        #self.tfidfVectorizer.fit([' '.join(X)])
         
         def getFrequencyDictionaryAndN(filePath):
             content = getFileContent(filePath)
@@ -309,18 +308,14 @@ class FeatureExtractorV4(FeatureExtractor):
 
     def transform(self, X):        
         feature_names = self.countVectorizer.get_feature_names()
-        tfidf = self.tfidfVectorizer.transform(X)
-        #print(feature_names)
-        #m,n = tfidf.toarray().shape
+        #tfidf = self.tfidfVectorizer.transform(X)
         m = len(X)
         feature_num_names = {k:v for v,k in enumerate(feature_names)}
-        #print("(m,n) = ", (m,n))
         l,f = len(self.categories), len(feature_names)
         print("(l,f) = ", (l,f))
         matrix = dok_matrix((m,f*l))
         print("dok_matrix: ", matrix.shape)
         for i in range(m):
-            #print(X[i])
             grams = extract_ngrams(X[i], 1) + extract_ngrams(X[i], 2) + extract_ngrams(X[i], 3)
             for feature in grams:
                 if feature not in feature_names:
@@ -331,5 +326,4 @@ class FeatureExtractorV4(FeatureExtractor):
                     matrix[i, (l*f_n)+j] = 0
                     if c in log_scores:
                         matrix[i, (l*f_n)+j] = log_scores[c]
-        #return csr_matrix(matrix)
-        return hstack([csr_matrix(matrix), tfidf])
+        return csr_matrix(matrix)
