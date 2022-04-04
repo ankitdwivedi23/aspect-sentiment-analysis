@@ -1,4 +1,6 @@
 # CS 221 Project: Aspect Based Sentiment Analysis and Summarization of Reviews
+[Project Report](https://github.com/ankitdwivedi23/aspect-sentiment-analysis/blob/master/Project_Final_Report.pdf)
+
 
 All relevant code files are in the folder named **progress**
 
